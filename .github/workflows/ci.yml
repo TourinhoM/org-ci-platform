@@ -32,8 +32,6 @@ on:
         required: false
       SONAR_TOKEN:
         required: false
-      GITHUB_TOKEN:
-        required: false
 
 jobs:
   # ---- Push / PR: Trivy FS Scan ----
