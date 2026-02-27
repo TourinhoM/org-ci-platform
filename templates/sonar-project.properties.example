@@ -1,0 +1,8 @@
+# Copy to your project root as sonar-project.properties (or set in SonarQube UI).
+# SonarQube Scan action can also receive args in the workflow; this file is optional.
+
+sonar.projectKey=${github.repository}
+sonar.sources=.
+sonar.exclusions=**/tests/**,**/__pycache__/**,**/venv/**,**/.venv/**
+sonar.python.version=3.11
+sonar.python.coverage.reportPaths=coverage.xml

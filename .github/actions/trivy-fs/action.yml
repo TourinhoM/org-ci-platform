@@ -1,0 +1,31 @@
+# Single responsibility: Trivy filesystem scan + upload SARIF
+name: Trivy FS Scan
+description: Run Trivy filesystem scan and upload SARIF to GitHub Security tab
+
+inputs:
+  scan-ref:
+    description: 'Path to scan (default repo root)'
+    required: false
+    default: '.'
+  severity:
+    description: 'Severities to report'
+    required: false
+    default: 'CRITICAL,HIGH'
+
+runs:
+  using: composite
+  steps:
+    - name: Run Trivy filesystem scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: ${{ inputs.scan-ref }}
+        format: 'sarif'
+        output: 'trivy-fs-results.sarif'
+        severity: ${{ inputs.severity }}
+
+    - name: Upload Trivy FS results
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-fs-results.sarif'

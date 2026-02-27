@@ -1,0 +1,29 @@
+# Reusable: Deploy to Railway (placeholder – implement when ready)
+name: Deploy Railway
+
+on:
+  workflow_call:
+    inputs:
+      railway-service:
+        required: false
+        type: string
+      environment:
+        required: false
+        default: 'production'
+        type: string
+    secrets:
+      RAILWAY_TOKEN:
+        required: false
+        description: 'Railway API token when ready'
+
+jobs:
+  deploy:
+    name: Deploy to Railway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Placeholder – Railway deploy not configured
+        run: |
+          echo "Deploy to Railway will be implemented here."
+          echo "Configure RAILWAY_TOKEN secret and uncomment deploy steps in workflow."

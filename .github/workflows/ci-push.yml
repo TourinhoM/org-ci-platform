@@ -1,0 +1,94 @@
+# Orchestrator: Push pipeline (Trivy FS → Tests → Sonar → Docker → Trivy image)
+# Each step delegates to a single-responsibility action.
+name: CI Push
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        required: false
+        default: '3.11'
+        type: string
+      image-name:
+        description: 'Docker image name (e.g. myorg/myapp)'
+        required: true
+        type: string
+      dockerfile-path:
+        required: false
+        default: './Dockerfile'
+        type: string
+      coverage-path:
+        required: false
+        default: 'coverage.xml'
+        type: string
+      ci-platform-repo:
+        description: 'Org/repo of this CI platform (for actions path)'
+        required: false
+        default: 'YOUR_ORG/org-ci-platform'
+        type: string
+    secrets:
+      DOCKER_USERNAME:
+        required: true
+      DOCKER_PASSWORD:
+        required: true
+      SONAR_TOKEN:
+        required: true
+
+jobs:
+  trivy-fs:
+    name: Trivy FS Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/trivy-fs@main
+
+  unit-test:
+    name: Unit tests (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/unit-test-python@main
+        with:
+          python-version: ${{ inputs.python-version }}
+          coverage-path: ${{ inputs.coverage-path }}
+
+  sonarqube:
+    name: SonarQube
+    needs: [unit-test]
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/sonarqube@main
+        with:
+          coverage-path: ${{ inputs.coverage-path }}
+
+  docker-build:
+    name: Docker build & push
+    needs: [trivy-fs, unit-test]
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/docker-build-push@main
+        with:
+          image-name: ${{ inputs.image-name }}
+          dockerfile-path: ${{ inputs.dockerfile-path }}
+          tags: ${{ inputs.image-name }}:latest,${{ inputs.image-name }}:${{ github.sha }}
+
+  trivy-image:
+    name: Trivy container scan
+    needs: [docker-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to registry (scan de imagem privada)
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/trivy-image@main
+        with:
+          image-ref: ${{ inputs.image-name }}:${{ github.sha }}

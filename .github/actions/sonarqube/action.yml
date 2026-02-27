@@ -1,0 +1,33 @@
+# Single responsibility: SonarQube scan (expects coverage artifact)
+# Requires SONAR_TOKEN in env when calling
+name: SonarQube Scan
+description: Download coverage and run SonarQube scan
+
+inputs:
+  coverage-path:
+    required: false
+    default: 'coverage.xml'
+  sonar-args:
+    description: 'Extra SonarQube args (e.g. PR key, branch)'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Download coverage
+      uses: actions/download-artifact@v4
+      with:
+        name: coverage
+
+    - name: SonarQube Scan
+      uses: SonarSource/sonarqube-scan-action@v2
+      env:
+        SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+      with:
+        args: >
+          -Dsonar.projectKey=${{ github.repository }}
+          -Dsonar.sources=.
+          -Dsonar.python.coverage.reportPaths=${{ inputs.coverage-path }}
+          ${{ inputs.sonar-args }}
+      # SONAR_TOKEN must be set by caller job env

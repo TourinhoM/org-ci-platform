@@ -1,0 +1,21 @@
+# Copie para o seu projeto como .github/workflows/ci.yml
+# Usa o mesmo dono do repo (org ou usuário): se o projeto está em seu-usuario/meu-app, chama seu-usuario/org-ci-platform.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  tags:
+    - 'v*'
+
+jobs:
+  ci:
+    uses: ${{ github.repository_owner }}/org-ci-platform/.github/workflows/ci.yml@main
+    with:
+      image-name: ${{ github.repository }}
+      ci-platform-repo: ${{ github.repository_owner }}/org-ci-platform
+      # Opcionais: python-version, coverage-path, main-branch
+    secrets: inherit

@@ -1,0 +1,38 @@
+# Single responsibility: Python unit tests + coverage artifact
+name: Unit Test Python
+description: Install deps, run pytest with coverage, upload coverage artifact
+
+inputs:
+  python-version:
+    required: false
+    default: '3.11'
+  coverage-path:
+    required: false
+    default: 'coverage.xml'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-cov
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        if [ -f pyproject.toml ]; then pip install -e ".[dev]"; fi
+
+    - name: Run tests with coverage
+      shell: bash
+      run: |
+        pytest tests/ -v --cov --cov-report=xml:${{ inputs.coverage-path }} --cov-report=term-missing
+
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage
+        path: ${{ inputs.coverage-path }}

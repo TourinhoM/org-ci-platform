@@ -1,0 +1,11 @@
+# Single responsibility: Validate commit messages (conventional commits)
+name: Semantic Commit Check
+description: Run commitlint on PR commits
+
+runs:
+  using: composite
+  steps:
+    - name: Check commit messages (conventional commits)
+      uses: wagoid/commitlint-github-action@v5
+      with:
+        failOnWarnings: true

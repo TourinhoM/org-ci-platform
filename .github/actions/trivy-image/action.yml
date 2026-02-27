@@ -1,0 +1,28 @@
+# Single responsibility: Trivy container image scan + upload SARIF
+name: Trivy Image Scan
+description: Scan container image with Trivy and upload SARIF
+
+inputs:
+  image-ref:
+    description: 'Image reference (e.g. myorg/myapp:sha or :tag)'
+    required: true
+  severity:
+    required: false
+    default: 'CRITICAL,HIGH'
+
+runs:
+  using: composite
+  steps:
+    - name: Run Trivy image scan
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ inputs.image-ref }}
+        format: 'sarif'
+        output: 'trivy-image-results.sarif'
+        severity: ${{ inputs.severity }}
+
+    - name: Upload Trivy image SARIF
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-image-results.sarif'

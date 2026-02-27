@@ -1,0 +1,63 @@
+# Orchestrator: Pull Request pipeline (Tests → Sonar → Semantic commit check)
+name: CI Pull Request
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        required: false
+        default: '3.11'
+        type: string
+      coverage-path:
+        required: false
+        default: 'coverage.xml'
+        type: string
+      main-branch:
+        required: false
+        default: 'main'
+        type: string
+      ci-platform-repo:
+        required: false
+        default: 'YOUR_ORG/org-ci-platform'
+        type: string
+    secrets:
+      SONAR_TOKEN:
+        required: true
+
+jobs:
+  unit-test:
+    name: Unit tests (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/unit-test-python@main
+        with:
+          python-version: ${{ inputs.python-version }}
+          coverage-path: ${{ inputs.coverage-path }}
+
+  sonarqube:
+    name: SonarQube
+    needs: [unit-test]
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/sonarqube@main
+        with:
+          coverage-path: ${{ inputs.coverage-path }}
+          sonar-args: >
+            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
+            -Dsonar.pullrequest.branch=${{ github.head_ref }}
+            -Dsonar.pullrequest.base=${{ inputs.main-branch }}
+
+  semantic-commit-check:
+    name: Semantic commit check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/semantic-commit-check@main
