@@ -25,6 +25,10 @@ on:
         required: false
         default: 'main'
         type: string
+      ci-platform-repo:   # 👈 ISSO PRECISA EXISTIR
+        required: false
+        default: 'TourinhoM/org-ci-platform'
+        type: string
     secrets:
       DOCKER_USERNAME:
         required: false
