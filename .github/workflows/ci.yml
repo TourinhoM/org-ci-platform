@@ -29,6 +29,12 @@ on:
         required: false
         default: 'TourinhoM/org-ci-platform'
         type: string
+      caller-event:
+        required: true
+        type: string
+      caller-ref:
+        required: true
+        type: string
     secrets:
       DOCKER_USERNAME:
         required: false
@@ -94,7 +100,7 @@ jobs:
     name: SonarQube
     runs-on: ubuntu-latest
     needs: [unit-test]
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', inputs.main-branch))
+    if: inputs.caller-event == 'pull_request' || (inputs.caller-event == 'push' && inputs.caller-ref == format('refs/heads/{0}', inputs.main-branch))
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
