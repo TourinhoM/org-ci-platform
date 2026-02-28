@@ -36,7 +36,13 @@ on:
         required: false
       SONAR_TOKEN:
         required: false
-
+        
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  packages: write
+  
 jobs:
   # ---- Push / PR: Trivy FS Scan ----
   trivy-fs:
