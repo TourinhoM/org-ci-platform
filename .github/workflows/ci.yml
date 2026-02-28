@@ -100,7 +100,7 @@ jobs:
     name: SonarQube
     runs-on: ubuntu-latest
     needs: [unit-test]
-     if: |
+    if: >
       !startsWith(inputs.caller-ref, 'refs/tags/') &&
       inputs.caller-ref != format('refs/heads/{0}', inputs.main-branch)
     env:
@@ -110,9 +110,7 @@ jobs:
       - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
         with:
           coverage-path: ${{ inputs.coverage-path }}
-          sonar-args: >-
-            ${{ github.event_name == 'pull_request' && format('-Dsonar.pullrequest.key={0} -Dsonar.pullrequest.branch={1} -Dsonar.pullrequest.base={2}', github.event.pull_request.number, github.head_ref, inputs.main-branch) || '' }}
-
+          sonar-args: ""
   prepare-image:
     name: Prepare image name
     runs-on: ubuntu-latest
