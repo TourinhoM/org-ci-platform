@@ -17,4 +17,6 @@ jobs:
     with:
       image-name: ${{ github.repository }}
       ci-platform-repo: ${{ github.repository_owner }}/org-ci-platform
+      caller-event: ${{ github.event_name }}
+      caller-ref: ${{ github.ref }}
     secrets: inherit

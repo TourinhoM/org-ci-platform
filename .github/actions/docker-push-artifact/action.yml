@@ -1,0 +1,45 @@
+# Download image artifact, load, login, push
+# Job must set env: LOGIN_USERNAME, LOGIN_PASSWORD. For GHCR add REGISTRY=ghcr.io
+name: Docker Push Artifact
+description: Load image from artifact and push to registry
+
+inputs:
+  image-ref:
+    description: 'Image ref used when saving (e.g. ghcr.io/org/repo:sha)'
+    required: true
+  push-tags:
+    description: 'Tags to push (multiline)'
+    required: true
+  registry:
+    description: 'Registry (e.g. ghcr.io). Omit for Docker Hub'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Download image artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: docker-image
+
+    - name: Load image
+      run: docker load -i image.tar
+
+    - name: Login to registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ env.LOGIN_USERNAME }}
+        password: ${{ env.LOGIN_PASSWORD }}
+
+    - name: Tag and push
+      shell: bash
+      env:
+        PUSH_TAGS: ${{ inputs.push-tags }}
+      run: |
+        echo "$PUSH_TAGS" | while IFS= read -r tag; do
+          [ -z "$tag" ] && continue
+          docker tag ${{ inputs.image-ref }} "$tag"
+          docker push "$tag"
+        done

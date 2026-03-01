@@ -20,7 +20,8 @@ Cada action faz **uma coisa só**; os workflows apenas as encadeiam. Assim você
   actions/                    # Responsabilidade única (composite actions)
     trivy-fs/                 # Scan filesystem Trivy + upload SARIF
     sonarqube/                # Scan SonarQube (coverage opcional)
-    docker-build-push/        # Build e push da imagem
+    docker-build-artifact/    # Build e salva artefato (sem push)
+    docker-push-artifact/    # Carrega artefato e push
     trivy-image/              # Scan imagem com Trivy + upload SARIF
     semantic-commit-check/    # Commitlint (conventional commits)
   workflows/
@@ -66,10 +67,10 @@ O **caller** fica mínimo: um único job `ci` que chama `ci.yml` com `secrets: i
 
 ## Pipelines (resumo)
 
-- **Push (main):** Trivy FS → SonarQube → Docker build & push → Trivy image.
+- **Push (main):** Trivy FS → SonarQube → Docker build (artefato) → Trivy scan (no artefato) → Docker push.
 - **Pull Request:** SonarQube (PR) → Semantic commit check.
 - **Merge em main (opcional):** Semantic Release (tag + release).
-- **Tag (ex.: v*):** Docker build & push → Trivy image.
+- **Tag (ex.: v*):** Docker build (artefato) → Trivy scan (no artefato) → Docker push.
 - **Deploy:** Placeholder Railway.
 
 Os workflows rodam no **repositório que chama** (seu projeto); as actions são carregadas deste repositório (`ci-platform-repo`).
