@@ -19,12 +19,15 @@ runs:
   using: composite
   steps:
 
+    # 1️⃣ Tenta baixar coverage, mas nunca quebra o job
     - name: Download coverage (opcional)
+      id: download_cov
+      continue-on-error: true
       uses: actions/download-artifact@v4
       with:
         name: coverage
-        if-no-files-found: ignore
 
+    # 2️⃣ Define args apenas se arquivo realmente existir
     - name: Definir args de coverage
       shell: bash
       run: |
@@ -34,6 +37,7 @@ runs:
           echo "COVERAGE_ARGS=" >> $GITHUB_ENV
         fi
 
+    # 3️⃣ Executa SonarCloud
     - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v2
       env:
