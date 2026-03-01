@@ -71,7 +71,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
         with:
-          coverage-path: ${{ inputs.coverage-path }}
           sonar-args: ""
 
   detect-dockerfile:
