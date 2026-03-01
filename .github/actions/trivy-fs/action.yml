@@ -26,7 +26,6 @@ runs:
       skip-dirs: .git
       ignore-unfixed: true
       scanners: vuln,secret,misconfig
-      trivyignores: .trivyignore
       args: --skip-vcs
 
 #    - name: Upload Trivy FS results
