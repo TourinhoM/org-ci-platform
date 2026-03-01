@@ -65,14 +65,19 @@ jobs:
     if: >
       !startsWith(inputs.caller-ref, 'refs/tags/') &&
       inputs.caller-ref != format('refs/heads/{0}', inputs.main-branch)
+
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_ORG: ${{ vars.SONAR_ORG }}
+
     steps:
       - uses: actions/checkout@v4
-      - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
+
+      - name: SonarCloud Scan
+        uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
         with:
+          sonar-organization: ${{ env.SONAR_ORG }}
           sonar-args: ""
-          sonar-organization: ${{ vars.SONAR_ORG }}
 
   detect-dockerfile:
     name: Detect Dockerfile
