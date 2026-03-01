@@ -17,14 +17,17 @@ runs:
   steps:
   - name: Run Trivy filesystem scan
     uses: aquasecurity/trivy-action@master
-    env:
-      TRIVY_DISABLE_VCS: true
     with:
       scan-type: 'fs'
       scan-ref: ${{ inputs.scan-ref }}
       format: 'sarif'
       output: 'trivy-fs-results.sarif'
       severity: ${{ inputs.severity }}
+      skip-dirs: .git
+      ignore-unfixed: true
+      scanners: vuln,secret,misconfig
+      trivyignores: .trivyignore
+      args: --skip-vcs
 
 #    - name: Upload Trivy FS results
 #      uses: github/codeql-action/upload-sarif@v3
