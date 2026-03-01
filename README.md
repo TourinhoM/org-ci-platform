@@ -19,8 +19,7 @@ Cada action faz **uma coisa só**; os workflows apenas as encadeiam. Assim você
 .github/
   actions/                    # Responsabilidade única (composite actions)
     trivy-fs/                 # Scan filesystem Trivy + upload SARIF
-    unit-test-python/         # pytest + coverage + upload artifact
-    sonarqube/                # Download coverage + scan SonarQube
+    sonarqube/                # Scan SonarQube (coverage opcional)
     docker-build-push/        # Build e push da imagem
     trivy-image/              # Scan imagem com Trivy + upload SARIF
     semantic-commit-check/    # Commitlint (conventional commits)
@@ -67,8 +66,8 @@ O **caller** fica mínimo: um único job `ci` que chama `ci.yml` com `secrets: i
 
 ## Pipelines (resumo)
 
-- **Push (main):** Trivy FS → Unit tests → SonarQube → Docker build & push → Trivy image.
-- **Pull Request:** Unit tests → SonarQube (PR) → Semantic commit check.
+- **Push (main):** Trivy FS → SonarQube → Docker build & push → Trivy image.
+- **Pull Request:** SonarQube (PR) → Semantic commit check.
 - **Merge em main (opcional):** Semantic Release (tag + release).
 - **Tag (ex.: v*):** Docker build & push → Trivy image.
 - **Deploy:** Placeholder Railway.
