@@ -72,6 +72,7 @@ jobs:
       - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
         with:
           sonar-args: ""
+          sonar-organization: ${{ vars.SONAR_ORG }}
 
   detect-dockerfile:
     name: Detect Dockerfile
