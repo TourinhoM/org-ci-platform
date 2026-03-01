@@ -24,6 +24,7 @@ runs:
         name: docker-image
 
     - name: Load image
+      shell: bash
       run: docker load -i image.tar
 
     - name: Login to registry
