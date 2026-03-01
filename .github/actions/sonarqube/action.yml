@@ -1,23 +1,29 @@
-name: SonarQube Scan
-description: Download coverage (se existir) e roda SonarQube scan
+name: SonarCloud Scan
+description: Download coverage (se existir) e roda SonarCloud scan
 
 inputs:
+  sonar-organization:
+    description: SonarCloud organization key
+    required: true
+
   coverage-path:
     required: false
     default: 'coverage.xml'
+
   sonar-args:
-    description: 'Extra SonarQube args (e.g. PR key, branch)'
+    description: Extra Sonar args (e.g. PR key, branch)
     required: false
     default: ''
 
 runs:
   using: composite
   steps:
+
     - name: Download coverage (opcional)
       uses: actions/download-artifact@v4
       with:
         name: coverage
-      continue-on-error: true
+        if-no-files-found: ignore
 
     - name: Definir args de coverage
       shell: bash
@@ -35,6 +41,7 @@ runs:
         SONAR_HOST_URL: https://sonarcloud.io
       with:
         args: >
+          -Dsonar.organization=${{ inputs.sonar-organization }}
           -Dsonar.projectKey=${{ github.repository }}
           -Dsonar.sources=.
           ${{ env.COVERAGE_ARGS }}
