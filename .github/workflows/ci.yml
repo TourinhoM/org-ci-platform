@@ -53,6 +53,8 @@ jobs:
     if: inputs.caller-event == 'push' || inputs.caller-event == 'pull_request'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 👈 ESSENCIAL
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
 
   # ---- SonarQube ----
