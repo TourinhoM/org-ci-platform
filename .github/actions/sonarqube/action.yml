@@ -2,10 +2,6 @@ name: SonarCloud Scan
 description: Download coverage (se existir) e roda SonarCloud scan
 
 inputs:
-  sonar-organization:
-    description: SonarCloud organization key
-    required: true
-
   coverage-path:
     required: false
     default: 'coverage.xml'
@@ -18,22 +14,35 @@ runs:
   using: composite
   steps:
 
+    # 0️⃣ Garante que variáveis obrigatórias existem
+    - name: Validar variáveis obrigatórias
+      shell: bash
+      run: |
+        if [ -z "$SONAR_TOKEN" ]; then
+          echo "❌ SONAR_TOKEN não definido"
+          exit 1
+        fi
+
+        if [ -z "$SONAR_ORG" ]; then
+          echo "❌ SONAR_ORG não definido"
+          exit 1
+        fi
+
     # 1️⃣ Sanitiza automaticamente o project key
     - name: Sanitizar sonar.projectKey
       shell: bash
       run: |
-        # Substitui qualquer caractere inválido por "_"
         SANITIZED_KEY=$(echo "${{ github.repository }}" | sed 's#[^a-zA-Z0-9_]#_#g')
         echo "SONAR_PROJECT_KEY=$SANITIZED_KEY" >> $GITHUB_ENV
 
-    # 2️⃣ Tenta baixar coverage (não falha se não existir)
+    # 2️⃣ Download coverage (opcional)
     - name: Download coverage (opcional)
       continue-on-error: true
       uses: actions/download-artifact@v4
       with:
         name: coverage
 
-    # 3️⃣ Define args de coverage apenas se o arquivo existir
+    # 3️⃣ Define args de coverage se existir
     - name: Definir args de coverage
       shell: bash
       run: |
@@ -43,7 +52,7 @@ runs:
           echo "COVERAGE_ARGS=" >> $GITHUB_ENV
         fi
 
-    # 4️⃣ Executa SonarCloud
+    # 4️⃣ SonarCloud
     - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v2
       env:
@@ -51,7 +60,7 @@ runs:
         SONAR_HOST_URL: https://sonarcloud.io
       with:
         args: >
-          -Dsonar.organization=${{ inputs.sonar-organization }}
+          -Dsonar.organization=${{ env.SONAR_ORG }}
           -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
           -Dsonar.sources=.
           ${{ env.COVERAGE_ARGS }}
