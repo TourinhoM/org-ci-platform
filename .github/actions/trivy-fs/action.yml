@@ -15,19 +15,32 @@ inputs:
 runs:
   using: composite
   steps:
-  - name: Run Trivy filesystem scan
-    uses: aquasecurity/trivy-action@0.24.0
-    with:
-      scan-type: 'fs'
-      scan-ref: ${{ inputs.scan-ref }}
-      format: 'table'
-      output: 'trivy-fs-results.sarif'
-      severity: ${{ inputs.severity }}
-      skip-dirs: .git
-      ignore-unfixed: true
-      scanners: vuln,secret,misconfig
-      args: --skip-vcs
+    # Step 1: imprimir no console
+    - name: Run Trivy filesystem scan (console)
+      uses: aquasecurity/trivy-action@0.24.0
+      with:
+        scan-type: 'fs'
+        scan-ref: ${{ inputs.scan-ref }}
+        format: 'table'        # imprime no terminal
+        severity: ${{ inputs.severity }}
+        skip-dirs: .git
+        ignore-unfixed: true
+        scanners: vuln,secret,misconfig
+        args: --skip-vcs
 
+    # Step 2: gerar SARIF para GitHub
+#    - name: Run Trivy filesystem scan (SARIF)
+#      uses: aquasecurity/trivy-action@0.24.0
+#      with:
+#        scan-type: 'fs'
+#        scan-ref: ${{ inputs.scan-ref }}
+#        format: 'sarif'        # gera arquivo SARIF
+#        output: 'trivy-fs-results.sarif'
+#        severity: ${{ inputs.severity }}
+#        skip-dirs: .git
+#        ignore-unfixed: true
+#        scanners: vuln,secret,misconfig
+#        args: --skip-vcs
 #    - name: Upload Trivy FS results
 #      uses: github/codeql-action/upload-sarif@v3
 #      if: always()
