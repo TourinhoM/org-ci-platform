@@ -2,6 +2,9 @@ name: SonarCloud Scan
 description: Download coverage (se existir) e roda SonarCloud scan
 
 inputs:
+  sonar-organization:
+    required: true
+
   coverage-path:
     required: false
     default: 'coverage.xml'

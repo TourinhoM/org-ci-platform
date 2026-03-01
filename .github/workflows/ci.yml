@@ -68,13 +68,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
       - name: SonarCloud Scan
         uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_ORG: ${{ vars.SONAR_ORG }}
         with:
+          sonar-organization: ${{ vars.SONAR_ORG }}
           sonar-args: ""
 
   detect-dockerfile:
