@@ -3,7 +3,9 @@ description: Download coverage (se existir) e roda SonarCloud scan
 
 inputs:
   sonar-organization:
-    description: SonarCloud organization key
+    required: true
+
+  sonar-project-key:
     required: true
 
   coverage-path:
@@ -11,7 +13,6 @@ inputs:
     default: 'coverage.xml'
 
   sonar-args:
-    description: Extra Sonar args (e.g. PR key, branch)
     required: false
     default: ''
 
@@ -19,15 +20,12 @@ runs:
   using: composite
   steps:
 
-    # 1️⃣ Tenta baixar coverage, mas nunca quebra o job
     - name: Download coverage (opcional)
-      id: download_cov
       continue-on-error: true
       uses: actions/download-artifact@v4
       with:
         name: coverage
 
-    # 2️⃣ Define args apenas se arquivo realmente existir
     - name: Definir args de coverage
       shell: bash
       run: |
@@ -37,7 +35,6 @@ runs:
           echo "COVERAGE_ARGS=" >> $GITHUB_ENV
         fi
 
-    # 3️⃣ Executa SonarCloud
     - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v2
       env:
@@ -46,7 +43,7 @@ runs:
       with:
         args: >
           -Dsonar.organization=${{ inputs.sonar-organization }}
-          -Dsonar.projectKey=${{ github.repository }}
+          -Dsonar.projectKey=${{ inputs.sonar-project-key }}
           -Dsonar.sources=.
           ${{ env.COVERAGE_ARGS }}
           ${{ inputs.sonar-args }}
