@@ -3,9 +3,7 @@ description: Download coverage (se existir) e roda SonarCloud scan
 
 inputs:
   sonar-organization:
-    required: true
-
-  sonar-project-key:
+    description: SonarCloud organization key
     required: true
 
   coverage-path:
@@ -20,12 +18,22 @@ runs:
   using: composite
   steps:
 
+    # 1️⃣ Sanitiza automaticamente o project key
+    - name: Sanitizar sonar.projectKey
+      shell: bash
+      run: |
+        # Substitui qualquer caractere inválido por "_"
+        SANITIZED_KEY=$(echo "${{ github.repository }}" | sed 's#[^a-zA-Z0-9_]#_#g')
+        echo "SONAR_PROJECT_KEY=$SANITIZED_KEY" >> $GITHUB_ENV
+
+    # 2️⃣ Tenta baixar coverage (não falha se não existir)
     - name: Download coverage (opcional)
       continue-on-error: true
       uses: actions/download-artifact@v4
       with:
         name: coverage
 
+    # 3️⃣ Define args de coverage apenas se o arquivo existir
     - name: Definir args de coverage
       shell: bash
       run: |
@@ -35,6 +43,7 @@ runs:
           echo "COVERAGE_ARGS=" >> $GITHUB_ENV
         fi
 
+    # 4️⃣ Executa SonarCloud
     - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v2
       env:
@@ -43,7 +52,7 @@ runs:
       with:
         args: >
           -Dsonar.organization=${{ inputs.sonar-organization }}
-          -Dsonar.projectKey=${{ inputs.sonar-project-key }}
+          -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
           -Dsonar.sources=.
           ${{ env.COVERAGE_ARGS }}
           ${{ inputs.sonar-args }}
