@@ -16,7 +16,7 @@ runs:
   using: composite
   steps:
   - name: Run Trivy filesystem scan
-    uses: aquasecurity/trivy-action@master
+    uses: aquasecurity/trivy-action@0.24.0
     with:
       scan-type: 'fs'
       scan-ref: ${{ inputs.scan-ref }}
