@@ -71,14 +71,31 @@ jobs:
         with:
           coverage-path: ${{ inputs.coverage-path }}
           sonar-args: ""
+
+detect-dockerfile:
+  name: Detect Dockerfile
+  runs-on: ubuntu-latest
+  outputs:
+    has_dockerfile: ${{ steps.check.outputs.exists }}
+  steps:
+    - uses: actions/checkout@v4
+
+    - id: check
+      run: |
+        if [ -f "${{ inputs.dockerfile-path }}" ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
   prepare-image:
     name: Prepare image (tag dinâmico)
     runs-on: ubuntu-latest
-    needs: [trivy-fs]
+    needs: [sonarqube, detect-dockerfile]
     if: >
+      needs.detect-dockerfile.outputs.has_dockerfile == 'true' &&
       inputs.caller-event == 'push' && (
         (startsWith(inputs.caller-ref, 'refs/heads/') &&
-         inputs.caller-ref != format('refs/heads/{0}', inputs.main-branch)) ||
+        inputs.caller-ref != format('refs/heads/{0}', inputs.main-branch)) ||
         startsWith(inputs.caller-ref, 'refs/tags/')
       )
     outputs:
@@ -107,11 +124,12 @@ jobs:
   docker-build:
     name: Docker build
     runs-on: ubuntu-latest
-    needs: [prepare-image]
+    needs: [sonarqube, detect-dockerfile, prepare-image]
     if: >
+      needs.detect-dockerfile.outputs.has_dockerfile == 'true' &&
       inputs.caller-event == 'push' && (
         (startsWith(inputs.caller-ref, 'refs/heads/') &&
-         inputs.caller-ref != format('refs/heads/{0}', inputs.main-branch)) ||
+        inputs.caller-ref != format('refs/heads/{0}', inputs.main-branch)) ||
         startsWith(inputs.caller-ref, 'refs/tags/')
       )
     permissions:
@@ -128,11 +146,12 @@ jobs:
   trivy-image:
     name: Trivy container scan
     runs-on: ubuntu-latest
-    needs: [docker-build, prepare-image]
+    needs: [docker-build, prepare-image, detect-dockerfile]
     if: >
+      needs.detect-dockerfile.outputs.has_dockerfile == 'true' &&
       inputs.caller-event == 'push' && (
         (startsWith(inputs.caller-ref, 'refs/heads/') &&
-         inputs.caller-ref != format('refs/heads/{0}', inputs.main-branch)) ||
+        inputs.caller-ref != format('refs/heads/{0}', inputs.main-branch)) ||
         startsWith(inputs.caller-ref, 'refs/tags/')
       )
     permissions:
@@ -151,11 +170,12 @@ jobs:
   docker-push:
     name: Docker push
     runs-on: ubuntu-latest
-    needs: [trivy-image, prepare-image]
+    needs: [trivy-image, prepare-image, detect-dockerfile]
     if: >
+      needs.detect-dockerfile.outputs.has_dockerfile == 'true' &&
       inputs.caller-event == 'push' && (
         (startsWith(inputs.caller-ref, 'refs/heads/') &&
-         inputs.caller-ref != format('refs/heads/{0}', inputs.main-branch)) ||
+        inputs.caller-ref != format('refs/heads/{0}', inputs.main-branch)) ||
         startsWith(inputs.caller-ref, 'refs/tags/')
       )
     permissions:
