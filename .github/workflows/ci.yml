@@ -72,21 +72,21 @@ jobs:
           coverage-path: ${{ inputs.coverage-path }}
           sonar-args: ""
 
-detect-dockerfile:
-  name: Detect Dockerfile
-  runs-on: ubuntu-latest
-  outputs:
-    has_dockerfile: ${{ steps.check.outputs.exists }}
-  steps:
-    - uses: actions/checkout@v4
+  detect-dockerfile:
+    name: Detect Dockerfile
+    runs-on: ubuntu-latest
+    outputs:
+      has_dockerfile: ${{ steps.check.outputs.exists }}
+    steps:
+      - uses: actions/checkout@v4
 
-    - id: check
-      run: |
-        if [ -f "${{ inputs.dockerfile-path }}" ]; then
-          echo "exists=true" >> $GITHUB_OUTPUT
-        else
-          echo "exists=false" >> $GITHUB_OUTPUT
-        fi
+      - id: check
+        run: |
+          if [ -f "${{ inputs.dockerfile-path }}" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
   prepare-image:
     name: Prepare image (tag dinâmico)
     runs-on: ubuntu-latest
