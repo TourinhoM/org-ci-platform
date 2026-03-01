@@ -4,11 +4,9 @@ description: Download coverage (se existir) e roda SonarCloud scan
 inputs:
   sonar-organization:
     required: true
-
   coverage-path:
     required: false
     default: 'coverage.xml'
-
   sonar-args:
     required: false
     default: ''
@@ -26,10 +24,13 @@ runs:
           exit 1
         fi
 
-        if [ -z "$SONAR_ORG" ]; then
-          echo "❌ SONAR_ORG não definido"
+        if [ -z "${{ inputs.sonar-organization }}" ]; then
+          echo "❌ sonar-organization não definido"
           exit 1
         fi
+
+        # exporta input para variável de ambiente que será usada depois
+        echo "SONAR_ORG=${{ inputs.sonar-organization }}" >> $GITHUB_ENV
 
     # 1️⃣ Sanitiza automaticamente o project key
     - name: Sanitizar sonar.projectKey
@@ -61,6 +62,7 @@ runs:
       env:
         SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
         SONAR_HOST_URL: https://sonarcloud.io
+        SONAR_ORG: ${{ env.SONAR_ORG }}
       with:
         args: >
           -Dsonar.organization=${{ env.SONAR_ORG }}

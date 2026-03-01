@@ -68,6 +68,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - name: SonarCloud Scan
         uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
         env:
