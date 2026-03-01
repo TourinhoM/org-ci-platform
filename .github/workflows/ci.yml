@@ -58,6 +58,7 @@ jobs:
   # ---- SonarQube ----
   sonarqube:
     name: SonarQube
+    needs: [trivy-fs]
     runs-on: ubuntu-latest
     if: >
       !startsWith(inputs.caller-ref, 'refs/tags/') &&
