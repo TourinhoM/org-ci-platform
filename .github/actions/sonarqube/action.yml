@@ -1,6 +1,3 @@
-# Single responsibility: SonarQube scan (coverage opcional)
-# Requires SONAR_TOKEN in env when calling
-# Se o artifact "coverage" não existir, roda Sonar sem coverage
 name: SonarQube Scan
 description: Download coverage (se existir) e roda SonarQube scan
 
@@ -31,10 +28,11 @@ runs:
           echo "COVERAGE_ARGS=" >> $GITHUB_ENV
         fi
 
-    - name: SonarQube Scan
+    - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v2
       env:
         SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+        SONAR_HOST_URL: https://sonarcloud.io
       with:
         args: >
           -Dsonar.projectKey=${{ github.repository }}
