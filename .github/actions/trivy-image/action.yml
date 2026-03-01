@@ -13,13 +13,20 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Run Trivy image scan
-      uses: aquasecurity/trivy-action@0.24.0
+    - name: Run Trivy image scan (console)
+      uses: aquasecurity/trivy-action@v0.24.0
       with:
         image-ref: ${{ inputs.image-ref }}
-        format: 'sarif'
-        output: 'trivy-image-results.sarif'
+        format: 'table'
         severity: ${{ inputs.severity }}
+
+#    - name: Run Trivy image scan (SARIF)
+#      uses: aquasecurity/trivy-action@v0.24.0
+#      with:
+#        image-ref: ${{ inputs.image-ref }}
+#        format: 'sarif'
+#        output: 'trivy-image-results.sarif'
+#        severity: ${{ inputs.severity }}
 
 #    - name: Upload Trivy image SARIF
 #      uses: github/codeql-action/upload-sarif@v3

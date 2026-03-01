@@ -20,7 +20,7 @@ runs:
     with:
       scan-type: 'fs'
       scan-ref: ${{ inputs.scan-ref }}
-      format: 'sarif'
+      format: 'table'
       output: 'trivy-fs-results.sarif'
       severity: ${{ inputs.severity }}
       skip-dirs: .git
