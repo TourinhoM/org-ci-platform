@@ -1,9 +1,7 @@
 name: CI - Semantic Release
 
 on:
-  push:
-    branches:
-      - main
+  workflow_call:
 
 jobs:
   semantic-release:
