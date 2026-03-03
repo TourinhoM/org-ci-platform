@@ -1,23 +1,18 @@
-# Reusable: Semantic Release (tag + GitHub Release on merge to main)
-# Call from your repo on push to main to auto-tag and create release from conventional commits
-name: Semantic Release
+name: CI - Semantic Release
 
 on:
-  workflow_call:
-    inputs:
-      main-branch:
-        required: false
-        default: 'main'
-        type: string
-    secrets:
-      GITHUB_TOKEN:
-        required: true
+  push:
+    branches:
+      - main
 
 jobs:
-  release:
-    name: Tag & Release
+  semantic-release:
+    name: Semantic Release
     runs-on: ubuntu-latest
-    if: github.ref == format('refs/heads/{0}', inputs.main-branch)
+    permissions:
+      contents: write       # necessário para criar tag
+      issues: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,4 +27,4 @@ jobs:
           extra_plugins: |
             @semantic-release/changelog
             @semantic-release/git
-          branch: ${{ inputs.main-branch }}
+          branch: main

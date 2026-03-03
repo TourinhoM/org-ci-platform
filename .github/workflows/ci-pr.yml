@@ -1,41 +1,54 @@
-# Orchestrator: Pull Request pipeline (Sonar → Semantic commit check)
-name: CI Pull Request
+name: CI - Pull Request
 
 on:
-  workflow_call:
-    inputs:
-      main-branch:
-        required: false
-        default: 'main'
-        type: string
-      ci-platform-repo:
-        required: false
-        default: 'YOUR_ORG/org-ci-platform'
-        type: string
-    secrets:
-      SONAR_TOKEN:
-        required: true
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  sonarqube:
-    name: SonarQube
-    runs-on: ubuntu-latest
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/sonarqube@main
-        with:
-          sonar-args: >
-            -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
-            -Dsonar.pullrequest.branch=${{ github.head_ref }}
-            -Dsonar.pullrequest.base=${{ inputs.main-branch }}
 
-  semantic-commit-check:
-    name: Semantic commit check
+  # -----------------------------
+  # 1️⃣ Trivy FS
+  # -----------------------------
+  trivy-fs:
+    name: Trivy FS Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/semantic-commit-check@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
+
+  # -----------------------------
+  # 2️⃣ SonarQube
+  # -----------------------------
+  sonarqube:
+    name: SonarQube
+    runs-on: ubuntu-latest
+    needs: trivy-fs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          sonar-organization: ${{ vars.SONAR_ORG }}
+          sonar-args: ""
+
+  # -----------------------------
+  # 3️⃣ Semantic Commit Check
+  # -----------------------------
+  semantic-commit-check:
+    name: Semantic Commit Check
+    runs-on: ubuntu-latest
+    needs: sonarqube
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: TourinhoM/org-ci-platform/.github/actions/semantic-commit-check@main

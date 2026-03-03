@@ -1,87 +1,127 @@
-# Orchestrator: Push pipeline (Trivy FS → Sonar → Docker build → Trivy scan → Docker push)
-name: CI Push
+name: CI - Push
 
 on:
-  workflow_call:
-    inputs:
-      image-name:
-        description: 'Docker image name (e.g. myorg/myapp)'
-        required: true
-        type: string
-      dockerfile-path:
-        required: false
-        default: './Dockerfile'
-        type: string
-      coverage-path:
-        required: false
-        default: 'coverage.xml'
-        type: string
-      ci-platform-repo:
-        required: false
-        default: 'YOUR_ORG/org-ci-platform'
-        type: string
-    secrets:
-      DOCKER_USERNAME:
-        required: true
-      DOCKER_PASSWORD:
-        required: true
-      SONAR_TOKEN:
-        required: true
+  push:
+    branches:
+      - '**'      # qualquer branch
+      - '!main'   # 👈 exclui main
+    tags:
+      - 'v*'
 
 jobs:
+
+  # -----------------------------
+  # 1️⃣ Trivy FS
+  # -----------------------------
   trivy-fs:
     name: Trivy FS Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
-      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/trivy-fs@main
+        with:
+          fetch-depth: 0
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
 
+  # -----------------------------
+  # 2️⃣ SonarQube (não roda para tag)
+  # -----------------------------
   sonarqube:
     name: SonarQube
     runs-on: ubuntu-latest
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    needs: trivy-fs
+    if: "!startsWith(github.ref, 'refs/tags/')"
     steps:
       - uses: actions/checkout@v4
-      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/sonarqube@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
-          coverage-path: ${{ inputs.coverage-path }}
+          sonar-organization: ${{ vars.SONAR_ORG }}
+          sonar-args: ""
 
+  # -----------------------------
+  # 3️⃣ Prepare Image
+  # -----------------------------
+  prepare-image:
+    name: Prepare image
+    runs-on: ubuntu-latest
+    needs: [trivy-fs, sonarqube]
+    if: always()
+    outputs:
+      image_repo: ${{ steps.env.outputs.repo }}
+      image_tag: ${{ steps.env.outputs.tag }}
+      push_tags: ${{ steps.env.outputs.push_tags }}
+    steps:
+      - id: env
+        run: |
+          REPO=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+          echo "repo=$REPO" >> $GITHUB_OUTPUT
+
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${{ github.ref_name }}"
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "push_tags<<EOT" >> $GITHUB_OUTPUT
+            echo "ghcr.io/$REPO:$TAG" >> $GITHUB_OUTPUT
+            echo "ghcr.io/$REPO:latest" >> $GITHUB_OUTPUT
+            echo "EOT" >> $GITHUB_OUTPUT
+          else
+            TAG="${{ github.sha }}"
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "push_tags=ghcr.io/$REPO:$TAG" >> $GITHUB_OUTPUT
+          fi
+
+  # -----------------------------
+  # 4️⃣ Docker Build
+  # -----------------------------
   docker-build:
-    name: Docker build (artefato)
-    needs: [trivy-fs]
+    name: Docker Build
     runs-on: ubuntu-latest
+    needs: prepare-image
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
-      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/docker-build-artifact@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/docker-build-artifact@main
         with:
-          image-ref: ${{ inputs.image-name }}:${{ github.sha }}
-          dockerfile-path: ${{ inputs.dockerfile-path }}
+          image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
+          dockerfile-path: ./Dockerfile
 
+  # -----------------------------
+  # 5️⃣ Trivy Image
+  # -----------------------------
   trivy-image:
-    name: Trivy container scan
-    needs: [docker-build]
+    name: Trivy Container Scan
     runs-on: ubuntu-latest
+    needs: [docker-build, prepare-image]
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: docker-image
       - run: docker load -i image.tar
-      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/trivy-image@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-image@main
         with:
-          image-ref: ${{ inputs.image-name }}:${{ github.sha }}
+          image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
 
+  # -----------------------------
+  # 6️⃣ Docker Push
+  # -----------------------------
   docker-push:
-    name: Docker push
-    needs: [trivy-image]
+    name: Docker Push
     runs-on: ubuntu-latest
-    env:
-      LOGIN_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      LOGIN_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    needs: [trivy-image, prepare-image]
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: ${{ inputs.ci-platform-repo }}/.github/actions/docker-push-artifact@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/docker-push-artifact@main
         with:
-          image-ref: ${{ inputs.image-name }}:${{ github.sha }}
-          push-tags: |
-            ${{ inputs.image-name }}:${{ github.sha }}
-            ${{ inputs.image-name }}:latest
+          image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
+          push-tags: ${{ needs.prepare-image.outputs.push_tags }}
+          registry: ghcr.io
