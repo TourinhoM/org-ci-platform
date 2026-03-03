@@ -1,7 +1,18 @@
 name: CI - Push
 
 on:
-  push:
+  workflow_call:
+    inputs:
+      image-name:
+        required: true
+        type: string
+      dockerfile-path:
+        required: false
+        default: './Dockerfile'
+        type: string
+    secrets:
+      SONAR_TOKEN:
+        required: false
     branches:
       - '**'      # qualquer branch
       - '!main'   # 👈 exclui main
