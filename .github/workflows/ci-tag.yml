@@ -91,6 +91,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      LOGIN_USERNAME: ${{ github.actor }}
+      LOGIN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: TourinhoM/org-ci-platform/.github/actions/docker-push-artifact@main
         with:
