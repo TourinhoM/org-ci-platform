@@ -13,11 +13,6 @@ on:
     secrets:
       SONAR_TOKEN:
         required: false
-    branches:
-      - '**'      # qualquer branch
-      - '!main'   # 👈 exclui main
-    tags:
-      - 'v*'
 
 jobs:
 
