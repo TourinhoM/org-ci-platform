@@ -1,9 +1,15 @@
 name: CI - Semantic Release
 
 on:
-  push:
-    branches:
-      - main
+  workflow_call:
+    inputs:
+      image-name:
+        required: true
+        type: string
+      dockerfile-path:
+        required: false
+        default: './Dockerfile'
+        type: string
 
 jobs:
   semantic-release:
