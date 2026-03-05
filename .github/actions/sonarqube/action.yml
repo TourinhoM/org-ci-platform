@@ -52,13 +52,15 @@ runs:
         name: coverage
 
     # 3️⃣ Define args de coverage se existir
-    - name: Definir args de coverage
+    - name: Definir args de coverage se existir (JS)
       shell: bash
       run: |
-        if [ -f "${{ inputs.coverage-path }}" ]; then
-          echo "COVERAGE_ARGS=-Dsonar.python.coverage.reportPaths=${{ inputs.coverage-path }}" >> $GITHUB_ENV
+        if [ -f "coverage/lcov.info" ]; then
+          echo "COVERAGE_ARGS=-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info" >> $GITHUB_ENV
+          echo "Coverage lcov encontrado ✅"
         else
           echo "COVERAGE_ARGS=" >> $GITHUB_ENV
+          echo "Coverage NÃO encontrado ❌"
         fi
 
     # 4️⃣ Define args de coverage exclusions se existir
