@@ -38,6 +38,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
       - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

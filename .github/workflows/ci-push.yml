@@ -44,6 +44,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/tags/')"
     steps:
       - uses: actions/checkout@v4
+      - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
       - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

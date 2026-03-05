@@ -1,0 +1,39 @@
+name: Unit Test
+description: Run unit tests with coverage and publish lcov for Sonar
+
+inputs:
+  node-version:
+    required: false
+    default: '20'
+
+runs:
+  using: composite
+  steps:
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        if [ -f pnpm-lock.yaml ]; then
+          npm install -g pnpm
+          pnpm install --frozen-lockfile
+        elif [ -f package-lock.json ]; then
+          npm ci
+        else
+          npm install
+        fi
+
+    - name: Run tests with coverage
+      shell: bash
+      run: |
+        npm test -- --coverage
+
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage
+        path: coverage/lcov.info
