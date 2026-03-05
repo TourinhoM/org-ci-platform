@@ -10,6 +10,9 @@ on:
         required: false
         default: './Dockerfile'
         type: string
+      coverage-exclusions:
+        required: false
+        type: string
     secrets:
       SONAR_TOKEN:
         required: false
@@ -46,6 +49,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           sonar-organization: ${{ vars.SONAR_ORG }}
+          coverage-exclusions: ${{ inputs.coverage-exclusions }}
           sonar-args: ""
 
   # -----------------------------

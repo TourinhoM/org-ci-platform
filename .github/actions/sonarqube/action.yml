@@ -4,9 +4,15 @@ description: Download coverage (se existir) e roda SonarCloud scan
 inputs:
   sonar-organization:
     required: true
+
   coverage-path:
     required: false
     default: 'coverage.xml'
+
+  coverage-exclusions:
+    required: false
+    default: ''
+
   sonar-args:
     required: false
     default: ''
@@ -29,7 +35,6 @@ runs:
           exit 1
         fi
 
-        # exporta input para variável de ambiente que será usada depois
         echo "SONAR_ORG=${{ inputs.sonar-organization }}" >> $GITHUB_ENV
 
     # 1️⃣ Sanitiza automaticamente o project key
@@ -56,17 +61,27 @@ runs:
           echo "COVERAGE_ARGS=" >> $GITHUB_ENV
         fi
 
-    # 4️⃣ SonarCloud
+    # 4️⃣ Define args de coverage exclusions se existir
+    - name: Definir args de coverage exclusions
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.coverage-exclusions }}" ]; then
+          echo "COVERAGE_EXCLUSION_ARGS=-Dsonar.coverage.exclusions=${{ inputs.coverage-exclusions }}" >> $GITHUB_ENV
+        else
+          echo "COVERAGE_EXCLUSION_ARGS=" >> $GITHUB_ENV
+        fi
+
+    # 5️⃣ SonarCloud
     - name: SonarCloud Scan
       uses: SonarSource/sonarqube-scan-action@v2
       env:
         SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
         SONAR_HOST_URL: https://sonarcloud.io
-        SONAR_ORG: ${{ env.SONAR_ORG }}
       with:
         args: >
           -Dsonar.organization=${{ env.SONAR_ORG }}
           -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
           -Dsonar.sources=.
           ${{ env.COVERAGE_ARGS }}
+          ${{ env.COVERAGE_EXCLUSION_ARGS }}
           ${{ inputs.sonar-args }}
