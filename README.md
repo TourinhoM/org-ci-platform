@@ -49,6 +49,7 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
     ci-push.yml
     ci-release.yml
     ci-tag.yml
+    deploy-railway.yml       # WIP — implementacao planejada
     _caller-ci-pr.yml.example
     _caller-ci-push.yml.example
     _caller-ci-release.yml.example
