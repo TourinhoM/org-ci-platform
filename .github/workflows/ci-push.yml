@@ -56,7 +56,6 @@ jobs:
   prepare-image:
     name: Prepare image
     runs-on: ubuntu-latest
-    needs: sonarqube
     needs: [trivy-fs, sonarqube]
     if: always()
     outputs:
