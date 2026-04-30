@@ -1,80 +1,118 @@
 # org-ci-platform
 
-Plataforma de CI/CD reutilizável para a organização. **Não contém código de aplicação** — apenas workflows (orquestradores) e **actions de responsabilidade única** para múltiplos repositórios (hoje projetos Python).
+Plataforma de CI/CD reutilizável para múltiplos repositórios. **Não contém código de aplicação** — apenas workflows callable e composite actions de responsabilidade única, consumidas por callers minimalistas no projeto final.
 
 ## Separação de responsabilidades
 
 | Camada | Onde | Responsabilidade |
 |--------|------|------------------|
-| **Actions** | `.github/actions/<nome>/` | Um passo lógico cada: Trivy FS, testes, Sonar, Docker, etc. |
-| **Workflows** | `.github/workflows/*.yml` | Só orquestração: quando rodar e em que ordem chamar as actions. |
+| **Composite Actions** | `.github/actions/<nome>/` | Um passo lógico cada: scan, test, build, push, etc. |
+| **Reusable Workflows** | `.github/workflows/ci-*.yml` | Orquestração por evento (PR, push, release, tag). |
+| **Callers** | `.github/workflows/_caller-*.yml.example` | Templates mínimos pra colar no projeto consumidor. |
 
-Cada action faz **uma coisa só**; os workflows apenas as encadeiam. Assim você pode reutilizar uma action em outro workflow ou ajustar uma etapa sem mexer nas outras.
+Cada action faz **uma coisa só**; cada workflow callable encadeia actions pra um evento específico.
 
 ---
 
-## Estrutura do repositório
+## Modelo de pipeline: per-event
+
+No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota **um workflow callable por evento** e o projeto consumidor copia **um caller por evento** que precisa cobrir:
+
+| Evento | Workflow callable | O que roda |
+|--------|-------------------|------------|
+| Pull Request → main | `ci-pr.yml` | Trivy FS → Unit test → SonarQube → Semantic commit check |
+| Push em branch (≠ main) | `ci-push.yml` | Trivy FS → Unit test → SonarQube → Docker build → Trivy image → Docker push |
+| Push em main | `ci-release.yml` | Semantic Release (cria tag a partir de conventional commits) |
+| Tag `v*` | `ci-tag.yml` | Trivy FS → Docker build → Trivy image → Docker push (com `:latest`) |
+
+> Optei por per-event no lugar de um workflow único decidindo por `if:` — fica mais explícito, evita árvore de condicionais misturando lógica de eventos diferentes, e cada arquivo de workflow tem responsabilidade única.
+
+---
+
+## Estrutura
 
 ```
 .github/
-  actions/                    # Responsabilidade única (composite actions)
-    trivy-fs/                 # Scan filesystem Trivy + upload SARIF
-    sonarqube/                # Scan SonarQube (coverage opcional)
-    docker-build-artifact/    # Build e salva artefato (sem push)
-    docker-push-artifact/    # Carrega artefato e push
-    trivy-image/              # Scan imagem com Trivy + upload SARIF
-    semantic-commit-check/    # Commitlint (conventional commits)
+  actions/
+    trivy-fs/                # Scan filesystem (vuln + secret + misconfig) com gate via Rego
+    trivy-image/             # Scan imagem com gate via Rego
+    sonarqube/               # SonarCloud com sanitização de project key
+    unit-test/               # Testes Node (npm test, publica coverage/lcov.info)
+    unit-test-python/        # Testes Python (pytest, publica coverage.xml)
+    docker-build-artifact/   # Build → tar → upload artifact (sem push)
+    docker-push-artifact/    # Download artifact → load → push
+    prepare-image-tag/       # Calcula repo + tag + push_tags a partir do evento
+    semantic-commit-check/   # commitlint pra conventional commits
+
   workflows/
-    ci.yml                    # ★ Pipeline único – o projeto só chama este (como include no GitLab)
-    ci-push.yml               # (opcional) Chamada separada para push
-    ci-pr.yml                 # (opcional) Chamada separada para PR
-    ci-tag.yml                # (opcional) Chamada separada para tag
-    ci-semantic-release.yml   # (opcional) Só semantic release
-    deploy-railway.yml        # Placeholder deploy Railway
-    _caller-example.yml.example   # Exemplo mínimo para colar no projeto
-templates/                    # Configs opcionais para copiar nos projetos
+    ci-pr.yml
+    ci-push.yml
+    ci-release.yml
+    ci-tag.yml
+    _caller-ci-pr.yml.example
+    _caller-ci-push.yml.example
+    _caller-ci-release.yml.example
+    _caller-ci-tag.yml.example
+
+templates/                   # Configs opcionais pro projeto consumidor
   .commitlintrc.json
   sonar-project.properties.example
   .releaserc.example
-README.md
 ```
 
 ---
 
 ## Como usar
 
-Toda a lógica de pipeline fica **neste repositório**. No projeto final você só tem um workflow que **chama** o pipeline único.
+No projeto consumidor, copie os 4 callers de `.github/workflows/_caller-*.yml.example` pra `.github/workflows/` removendo o sufixo `.example`. Cada caller já tem `on:` correto e chama o workflow callable equivalente.
 
-1. No seu projeto, crie `.github/workflows/ci.yml` com base em [.github/workflows/_caller-example.yml.example](.github/workflows/_caller-example.yml.example).
-2. Deixe como está: o caller usa `${{ github.repository_owner }}` — se o projeto está no seu usuário (ex.: `seu-user/meu-app`), ele chama `seu-user/org-ci-platform`. Mesmo vale para org.
-3. Configure no repositório do projeto os secrets: `DOCKER_USERNAME`, `DOCKER_PASSWORD`, `SONAR_TOKEN`.
-4. (Opcional) Copie arquivos de `templates/` para o projeto.
+1. Copie `_caller-ci-pr.yml.example` → `.github/workflows/ci-pr.yml`
+2. Copie `_caller-ci-push.yml.example` → `.github/workflows/ci-push.yml`
+3. Copie `_caller-ci-release.yml.example` → `.github/workflows/ci-release.yml`
+4. Copie `_caller-ci-tag.yml.example` → `.github/workflows/ci-tag.yml`
+5. Configure secrets/vars no projeto (ver tabela abaixo)
+6. (Opcional) Copie configs de `templates/` pra raiz do projeto
 
-O **caller** fica mínimo: um único job `ci` que chama `ci.yml` com `secrets: inherit`. Quem decide o que rodar (push vs PR vs tag) é o **ci-platform**, pelo evento, como no include do GitLab.
+Os callers usam `${{ github.repository_owner }}` no `uses:`, então funcionam em usuário ou organização sem alteração — desde que o platform esteja sob o mesmo owner.
 
-**Imagem Docker:** o pipeline já usa **tag dinâmica**: em push para branch usa `nome_do_repo:sha` (commit SHA); em push de tag usa `nome_do_repo:tag` (ex.: `v1.0.0`). Para o nome da imagem ser o nome do repositório, use no caller `image-name: ${{ github.repository }}` (ex.: `minha-org/meu-app`). Se o registry tiver outro usuário, use algo como `'dockerhub-user/meu-app'`.
+### Secrets e vars necessários no projeto consumidor
 
-**Secrets no seu repo**
+| Item | Tipo | Onde | Descrição |
+|------|------|------|-----------|
+| `SONAR_TOKEN` | secret | PR, Push | Token SonarCloud |
+| `SONAR_ORG` | var | PR, Push | Organização SonarCloud |
+| `SONAR_COVERAGE_EXCLUSIONS` | var | PR (opcional) | Glob de paths excluídos do coverage |
 
-| Secret | Onde | Descrição |
-|--------|------|-----------|
-| `DOCKER_USERNAME` | Push / Tag | Usuário Docker Hub (registry) |
-| `DOCKER_PASSWORD` | Push / Tag | Senha ou token Docker Hub |
-| `SONAR_TOKEN` | Push / PR | Token SonarQube/SonarCloud |
-| `RAILWAY_TOKEN` | Deploy (futuro) | Token Railway |
+Imagens vão pro **GHCR** usando `GITHUB_TOKEN` automaticamente — sem secret adicional. Nome da imagem é derivado de `${{ github.repository }}` (ex.: `ghcr.io/seu-user/seu-repo:<sha>` em branch, `:<tag>` + `:latest` em tag).
 
 ---
 
-## Pipelines (resumo)
+## Security gate (Rego)
 
-- **Push (main):** Trivy FS → SonarQube → Docker build (artefato) → Trivy scan (no artefato) → Docker push.
-- **Pull Request:** SonarQube (PR) → Semantic commit check.
-- **Merge em main (opcional):** Semantic Release (tag + release).
-- **Tag (ex.: v*):** Docker build (artefato) → Trivy scan (no artefato) → Docker push.
-- **Deploy:** Placeholder Railway.
+`trivy-fs` e `trivy-image` usam `--ignore-policy` com OPA Rego pra **separar visibilidade de enforcement**:
 
-Os workflows rodam no **repositório que chama** (seu projeto); as actions são carregadas deste repositório (`ci-platform-repo`).
+- **Display:** o log mostra todas as severidades (UNKNOWN, LOW, MEDIUM, HIGH, CRITICAL).
+- **Gate:** `policy.rego` filtra UNKNOWN/LOW/MEDIUM antes do `--exit-code`, então o pipeline falha apenas em **HIGH** e **CRITICAL**.
 
-**GitLab vs GitHub:** No GitLab o projeto só faz `include:` de um arquivo remoto e os jobs vêm todos de lá. No GitHub o projeto precisa definir os **gatilhos** (`on: push`, `pull_request`, `tags`) no próprio repo, mas o **conteúdo** do pipeline (todos os jobs e steps) fica no ci-platform — o caller só dispara uma chamada ao `ci.yml` remoto. O efeito é o mesmo: estrutura grande no ci-platform, arquivo mínimo no projeto.
+Por que via Rego: o Trivy não tem flag separada pra "reportar tudo, falhar só em X" — o `--severity` filtra display E gate juntos. A policy desacopla os dois conceitos em uma única chamada.
 
-**Requisitos de lógica:** O projeto deve ter testes em `tests/` que gerem `coverage.xml`; falha de teste quebra o pipeline. Scan de imagem com Trivy faz login no registry antes do scan para imagens privadas (Docker Hub/registry).
+Cada action de Trivy carrega seu próprio `policy.rego` ao lado do `action.yml`. Pra mudar a threshold, edite a policy ou forke a action.
+
+---
+
+## Imagens e tags
+
+`prepare-image-tag` (composite) calcula a partir do evento:
+
+- **Push em branch:** `ghcr.io/<repo>:<sha>`
+- **Push em tag:** `ghcr.io/<repo>:<tag>` + `ghcr.io/<repo>:latest`
+
+Nome do repo é normalizado pra lowercase. Sem input de `image-name` — derivação automática a partir de `GITHUB_REPOSITORY`.
+
+---
+
+## Requisitos do projeto consumidor
+
+- **Testes:** ou Node (`package.json` com script `test`) ou Python (`tests/` com pytest e coverage). Falha de teste quebra o pipeline.
+- **Dockerfile:** na raiz do repo (ou caminho passado em `dockerfile-path`). Imagem é buildada como artifact e escaneada antes do push.
+- **Conventional commits:** `ci-pr.yml` usa commitlint (falha o PR se commit não for conventional); `ci-release.yml` usa semantic-release pra criar tag automaticamente a partir de feat/fix/etc.
