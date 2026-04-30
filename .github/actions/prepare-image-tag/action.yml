@@ -1,0 +1,46 @@
+name: Prepare Image Tag
+description: Generate Docker image repo, tag and push tags
+
+inputs:
+  registry:
+    description: Container registry
+    required: false
+    default: ghcr.io
+
+outputs:
+  repo:
+    description: Normalized repository name
+    value: ${{ steps.set.outputs.repo }}
+  tag:
+    description: Image tag
+    value: ${{ steps.set.outputs.tag }}
+  push_tags:
+    description: Tags to push
+    value: ${{ steps.set.outputs.push_tags }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: set
+      shell: bash
+      run: |
+        REPO=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+        REGISTRY="${{ inputs.registry }}"
+
+        echo "repo=$REPO" >> $GITHUB_OUTPUT
+
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          TAG="${{ github.ref_name }}"
+          
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          echo "push_tags<<EOT" >> $GITHUB_OUTPUT
+          echo "$REGISTRY/$REPO:$TAG" >> $GITHUB_OUTPUT
+          echo "$REGISTRY/$REPO:latest" >> $GITHUB_OUTPUT
+          echo "EOT" >> $GITHUB_OUTPUT
+        else
+          TAG="${{ github.sha }}"
+          
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "push_tags=$REGISTRY/$REPO:$TAG" >> $GITHUB_OUTPUT
+        fi

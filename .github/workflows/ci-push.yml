@@ -59,27 +59,12 @@ jobs:
     needs: [trivy-fs, sonarqube]
     if: always()
     outputs:
-      image_repo: ${{ steps.env.outputs.repo }}
-      image_tag: ${{ steps.env.outputs.tag }}
-      push_tags: ${{ steps.env.outputs.push_tags }}
+      image_repo: ${{ steps.prepare.outputs.repo }}
+      image_tag: ${{ steps.prepare.outputs.tag }}
+      push_tags: ${{ steps.prepare.outputs.push_tags }}
     steps:
-      - id: env
-        run: |
-          REPO=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
-          echo "repo=$REPO" >> $GITHUB_OUTPUT
-
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            TAG="${{ github.ref_name }}"
-            echo "tag=$TAG" >> $GITHUB_OUTPUT
-            echo "push_tags<<EOT" >> $GITHUB_OUTPUT
-            echo "ghcr.io/$REPO:$TAG" >> $GITHUB_OUTPUT
-            echo "ghcr.io/$REPO:latest" >> $GITHUB_OUTPUT
-            echo "EOT" >> $GITHUB_OUTPUT
-          else
-            TAG="${{ github.sha }}"
-            echo "tag=$TAG" >> $GITHUB_OUTPUT
-            echo "push_tags=ghcr.io/$REPO:$TAG" >> $GITHUB_OUTPUT
-          fi
+      - id: prepare
+        uses: TourinhoM/org-ci-platform/.github/actions/prepare-image-tag@main
 
   # -----------------------------
   # 4️⃣ Docker Build
