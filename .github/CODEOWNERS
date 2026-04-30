@@ -1,0 +1,5 @@
+# Reviewers padrao para tudo no repositorio.
+# Mudancas em workflows ou actions afetam consumers downstream — toda PR
+# requer revisao do owner.
+
+* @TourinhoM
