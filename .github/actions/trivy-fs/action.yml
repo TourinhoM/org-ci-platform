@@ -6,28 +6,22 @@ inputs:
   scan-ref:
     required: false
     default: '.'
-  severity:
-    required: false
-    default: 'LOW,MEDIUM,HIGH,CRITICAL'
 
-  fail-on-severity:
-    description: 'Fail pipeline if this severity is found'
-    required: false
-    default: 'HIGH,CRITICAL'
-    
 runs:
   using: composite
   steps:
+    # Display: log mostra todas severidades.
+    # Gate: policy.rego ignora UNKNOWN/LOW/MEDIUM, então exit-code só dispara em HIGH/CRITICAL.
     - name: Run Trivy filesystem scan (console)
       uses: aquasecurity/trivy-action@v0.36.0
       with:
         scan-type: 'fs'
         scan-ref: ${{ inputs.scan-ref }}
         format: 'table'
-        severity: ${{ inputs.fail-on-severity }}
         skip-dirs: .git
         ignore-unfixed: true
         scanners: vuln,secret,misconfig
+        ignore-policy: ${{ github.action_path }}/policy.rego
         exit-code: '1'
 
     # Step 2: gerar SARIF para GitHub

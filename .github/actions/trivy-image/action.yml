@@ -6,23 +6,17 @@ inputs:
   image-ref:
     required: true
 
-  severity:
-    required: false
-    default: 'LOW,MEDIUM,HIGH,CRITICAL'
-
-  fail-on-severity:
-    description: 'Fail pipeline if this severity is found'
-    required: false
-    default: 'HIGH,CRITICAL'
 runs:
   using: composite
   steps:
+    # Display: log mostra todas severidades.
+    # Gate: policy.rego ignora UNKNOWN/LOW/MEDIUM, então exit-code só dispara em HIGH/CRITICAL.
     - name: Run Trivy image scan (console)
       uses: aquasecurity/trivy-action@v0.36.0
       with:
         image-ref: ${{ inputs.image-ref }}
         format: 'table'
-        severity: ${{ inputs.fail-on-severity }}
+        ignore-policy: ${{ github.action_path }}/policy.rego
         exit-code: '1'
 
 #    - name: Run Trivy image scan (SARIF)
