@@ -1,34 +1,37 @@
-# Single responsibility: Trivy container image scan + upload SARIF
+# Single responsibility: Trivy container image scan with severity gate via Rego policy.
+# - 1st call: console output + gate (HIGH/CRITICAL fail via Rego ignore-policy)
+# - 2nd call: SARIF output (all severities, no filter) -> uploaded to Security tab
+#   if repo is public (or has GHAS).
 name: Trivy Image Scan
-description: Scan container image with Trivy and upload SARIF
+description: Trivy image scan + Rego policy gate + SARIF upload (conditional)
 
 inputs:
   image-ref:
+    description: 'Image reference (e.g. ghcr.io/org/repo:tag)'
     required: true
 
 runs:
   using: composite
   steps:
-    # Display: log mostra todas severidades.
-    # Gate: policy.rego ignora UNKNOWN/LOW/MEDIUM, então exit-code só dispara em HIGH/CRITICAL.
-    - name: Run Trivy image scan (console)
-      uses: aquasecurity/trivy-action@v0.36.0
+    - name: Trivy image scan (console + gate)
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         image-ref: ${{ inputs.image-ref }}
         format: 'table'
         ignore-policy: ${{ github.action_path }}/policy.rego
         exit-code: '1'
 
-#    - name: Run Trivy image scan (SARIF)
-#      uses: aquasecurity/trivy-action@v0.24.0
-#      with:
-#        image-ref: ${{ inputs.image-ref }}
-#        format: 'sarif'
-#        output: 'trivy-image-results.sarif'
-#        severity: ${{ inputs.severity }}
+    - name: Trivy image scan (SARIF)
+      if: always()
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      with:
+        image-ref: ${{ inputs.image-ref }}
+        format: 'sarif'
+        output: 'trivy-image-results.sarif'
 
-#    - name: Upload Trivy image SARIF
-#      uses: github/codeql-action/upload-sarif@v3
-#      if: always()
-#      with:
-#        sarif_file: 'trivy-image-results.sarif'
+    - name: Upload Trivy image SARIF to Security tab
+      if: always() && github.event.repository.visibility == 'public'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-image-results.sarif'
+        category: trivy-image
