@@ -11,4 +11,4 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    uses: TourinhoM/org-ci-platform/.github/workflows/ci-release.yml@main
+    uses: TourinhoM/org-ci-platform/.github/workflows/ci-release.yml@v1

@@ -26,7 +26,7 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v5
-      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@v1
 
   # -----------------------------
   # 2️⃣ Prepare Image
@@ -41,7 +41,7 @@ jobs:
       push_tags: ${{ steps.prepare.outputs.push_tags }}
     steps:
       - id: prepare
-        uses: TourinhoM/org-ci-platform/.github/actions/prepare-image-tag@main
+        uses: TourinhoM/org-ci-platform/.github/actions/prepare-image-tag@v1
 
   # -----------------------------
   # 3️⃣ Docker Build
@@ -55,7 +55,7 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v5
-      - uses: TourinhoM/org-ci-platform/.github/actions/docker-build-artifact@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/docker-build-artifact@v1
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
           dockerfile-path: ./Dockerfile
@@ -75,7 +75,7 @@ jobs:
         with:
           name: docker-image
       - run: docker load -i image.tar
-      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-image@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-image@v1
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
 
@@ -93,7 +93,7 @@ jobs:
       LOGIN_USERNAME: ${{ github.actor }}
       LOGIN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: TourinhoM/org-ci-platform/.github/actions/docker-push-artifact@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/docker-push-artifact@v1
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
           push-tags: ${{ needs.prepare-image.outputs.push_tags }}

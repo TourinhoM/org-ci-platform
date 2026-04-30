@@ -12,5 +12,5 @@ jobs:
       security-events: write
       actions: read
       packages: write
-    uses: TourinhoM/org-ci-platform/.github/workflows/ci-tag.yml@main
+    uses: TourinhoM/org-ci-platform/.github/workflows/ci-tag.yml@v1
     secrets: inherit
