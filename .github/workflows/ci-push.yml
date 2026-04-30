@@ -57,7 +57,6 @@ jobs:
     name: Prepare image
     runs-on: ubuntu-latest
     needs: [trivy-fs, sonarqube]
-    if: always()
     outputs:
       image_repo: ${{ steps.prepare.outputs.repo }}
       image_tag: ${{ steps.prepare.outputs.tag }}
