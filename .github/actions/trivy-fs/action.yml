@@ -24,7 +24,7 @@ runs:
         format: 'table'
         skip-dirs: .git
         ignore-unfixed: true
-        scanners: vuln,secret,misconfig
+        scanners: vuln,secret
         ignore-policy: ${{ github.action_path }}/policy.rego
         exit-code: '1'
 
@@ -40,7 +40,7 @@ runs:
         output: 'trivy-fs-results.sarif'
         skip-dirs: .git
         ignore-unfixed: true
-        scanners: vuln,secret,misconfig
+        scanners: vuln,secret
 
     # Upload condicional: GitHub Code Scanning e gratis em repos publicos;
     # em privado free tier o upload falha. Skipar quando privado evita ruido.

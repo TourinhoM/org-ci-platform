@@ -1,0 +1,39 @@
+# Single responsibility: Trivy config scan no Dockerfile.
+# Detecta misconfiguracoes estaticas: USER root, falta de HEALTHCHECK,
+# COPY com --chown ausente, etc. Independente do scan FS / image.
+name: Trivy Config Scan
+description: Trivy config scan (Dockerfile lint) com gate em HIGH/CRITICAL
+
+inputs:
+  config-path:
+    description: 'Path do Dockerfile (ou diretorio) a escanear'
+    required: false
+    default: './Dockerfile'
+
+runs:
+  using: composite
+  steps:
+    - name: Trivy config scan (console + gate)
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      with:
+        scan-type: 'config'
+        scan-ref: ${{ inputs.config-path }}
+        format: 'table'
+        ignore-policy: ${{ github.action_path }}/policy.rego
+        exit-code: '1'
+
+    - name: Trivy config scan (SARIF)
+      if: always()
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      with:
+        scan-type: 'config'
+        scan-ref: ${{ inputs.config-path }}
+        format: 'sarif'
+        output: 'trivy-config-results.sarif'
+
+    - name: Upload Trivy config SARIF to Security tab
+      if: always() && github.event.repository.visibility == 'public'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-config-results.sarif'
+        category: trivy-config

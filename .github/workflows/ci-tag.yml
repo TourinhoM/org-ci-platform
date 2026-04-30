@@ -29,12 +29,27 @@ jobs:
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@v1
 
   # -----------------------------
-  # 2️⃣ Prepare Image
+  # 2️⃣ Trivy Config (Dockerfile lint)
+  # -----------------------------
+  trivy-config:
+    name: Trivy Config Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-config@v1
+        with:
+          config-path: ${{ inputs.dockerfile-path }}
+
+  # -----------------------------
+  # 3️⃣ Prepare Image
   # -----------------------------
   prepare-image:
     name: Prepare image
     runs-on: ubuntu-latest
-    needs: trivy-fs
+    needs: [trivy-fs, trivy-config]
     outputs:
       image_repo: ${{ steps.prepare.outputs.repo }}
       image_tag: ${{ steps.prepare.outputs.tag }}
@@ -44,7 +59,7 @@ jobs:
         uses: TourinhoM/org-ci-platform/.github/actions/prepare-image-tag@v1
 
   # -----------------------------
-  # 3️⃣ Docker Build
+  # 4️⃣ Docker Build
   # -----------------------------
   docker-build:
     name: Docker Build
@@ -61,7 +76,7 @@ jobs:
           dockerfile-path: ./Dockerfile
 
   # -----------------------------
-  # 4️⃣ Trivy Image
+  # 5️⃣ Trivy Image
   # -----------------------------
   trivy-image:
     name: Trivy Container Scan
@@ -80,7 +95,7 @@ jobs:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
 
   # -----------------------------
-  # 5️⃣ Docker Push
+  # 6️⃣ Docker Push
   # -----------------------------
   docker-push:
     name: Docker Push
