@@ -13,6 +13,4 @@ jobs:
       actions: read
       packages: write
     uses: TourinhoM/org-ci-platform/.github/workflows/ci-tag.yml@main
-    with:
-      image-name: ghcr.io/TourinhoM/meu-app
     secrets: inherit
