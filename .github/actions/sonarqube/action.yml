@@ -75,7 +75,7 @@ runs:
 
     # 5️⃣ SonarCloud
     - name: SonarCloud Scan
-      uses: SonarSource/sonarqube-scan-action@v2
+      uses: SonarSource/sonarqube-scan-action@aecaf43ae57e412bd97d70ef9ce6076e672fe0a9 # v2
       env:
         SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
         SONAR_HOST_URL: https://sonarcloud.io
