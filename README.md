@@ -20,10 +20,10 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
 
 | Evento | Workflow callable | O que roda |
 |--------|-------------------|------------|
-| Pull Request → main | `ci-pr.yml` | Trivy FS → Unit test → SonarQube → Semantic commit check |
-| Push em branch (≠ main) | `ci-push.yml` | Trivy FS → Unit test → SonarQube → Docker build → Trivy image → Docker push |
+| Pull Request → main | `ci-pr.yml` | Trivy FS · Secret Scan · Unit test → SonarQube → Semantic commit check |
+| Push em branch (≠ main) | `ci-push.yml` | Trivy FS · Secret Scan · Trivy Config · Unit test → SonarQube → Docker build → Trivy image → Docker push |
 | Push em main | `ci-release.yml` | Semantic Release (cria tag a partir de conventional commits) |
-| Tag `v*` | `ci-tag.yml` | Trivy FS → Docker build → Trivy image → Docker push (com `:latest`) |
+| Tag `v*` | `ci-tag.yml` | Trivy FS · Trivy Config → Docker build → Trivy image → Docker push (com `:latest`) |
 
 > Optei por per-event no lugar de um workflow único decidindo por `if:` — fica mais explícito, evita árvore de condicionais misturando lógica de eventos diferentes, e cada arquivo de workflow tem responsabilidade única.
 
@@ -34,8 +34,10 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
 ```
 .github/
   actions/
-    trivy-fs/                # Scan filesystem (vuln + secret + misconfig) com gate via Rego
-    trivy-image/             # Scan imagem com gate via Rego
+    trivy-fs/                # Scan filesystem (vuln + secret) + SARIF + Rego gate
+    trivy-image/             # Scan imagem + SARIF + Rego gate
+    trivy-config/            # Lint de Dockerfile (USER root, HEALTHCHECK, etc.) + Rego gate
+    secret-scan/             # Gitleaks no historico git (defesa em profundidade)
     sonarqube/               # SonarCloud com sanitização de project key
     unit-test/               # Testes Node (npm test, publica coverage/lcov.info)
     unit-test-python/        # Testes Python (pytest, publica coverage.xml)
@@ -88,16 +90,33 @@ Imagens vão pro **GHCR** usando `GITHUB_TOKEN` automaticamente — sem secret a
 
 ---
 
-## Security gate (Rego)
+## Security posture
 
-`trivy-fs` e `trivy-image` usam `--ignore-policy` com OPA Rego pra **separar visibilidade de enforcement**:
+**Camadas de scan**, todas com gate em **HIGH/CRITICAL** e SARIF condicional ao Security tab (ativo quando repo público):
 
-- **Display:** o log mostra todas as severidades (UNKNOWN, LOW, MEDIUM, HIGH, CRITICAL).
-- **Gate:** `policy.rego` filtra UNKNOWN/LOW/MEDIUM antes do `--exit-code`, então o pipeline falha apenas em **HIGH** e **CRITICAL**.
+| Camada | Action | O que cobre |
+|--------|--------|-------------|
+| Filesystem | `trivy-fs` | Vulnerabilidades de libs + secrets no working tree |
+| Container image | `trivy-image` | CVE no artefato antes do push |
+| Dockerfile | `trivy-config` | Misconfig estática (USER root, HEALTHCHECK, etc.) |
+| Git history | `secret-scan` | Gitleaks — credenciais leaked no histórico |
 
-Por que via Rego: o Trivy não tem flag separada pra "reportar tudo, falhar só em X" — o `--severity` filtra display E gate juntos. A policy desacopla os dois conceitos em uma única chamada.
+### Gate via OPA Rego
 
-Cada action de Trivy carrega seu próprio `policy.rego` ao lado do `action.yml`. Pra mudar a threshold, edite a policy ou forke a action.
+As actions de Trivy usam `--ignore-policy` com OPA Rego pra **separar visibilidade de enforcement**:
+
+- **Display:** o log mostra todas severidades (UNKNOWN, LOW, MEDIUM, HIGH, CRITICAL).
+- **Gate:** `policy.rego` filtra UNKNOWN/LOW/MEDIUM antes do `--exit-code` — pipeline falha apenas em **HIGH** e **CRITICAL**.
+
+Por que via Rego: Trivy não tem flag separada pra "reportar tudo, falhar só em X" — o `--severity` filtra display E gate juntos. A policy desacopla os dois conceitos em uma única chamada.
+
+Cada action carrega seu próprio `policy.rego`. Pra mudar a threshold, edite a policy ou forke a action.
+
+### Supply chain
+
+Actions third-party (Trivy, Sonar, Docker, Semantic Release, Commitlint, Gitleaks) pinned por **SHA do commit** com comentário `# vX.Y.Z` pra leitura humana. Mitigação contra tag rewrite ([tj-actions/changed-files em 2024](https://github.com/tj-actions/changed-files/issues/2463) é o caso canônico).
+
+Dependabot (`.github/dependabot.yml`) bumpa SHA + comentário semanalmente.
 
 ---
 
