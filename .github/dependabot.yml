@@ -1,0 +1,19 @@
+version: 2
+
+updates:
+  # Atualiza referencias `uses:` em workflows e composite actions.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Sao_Paulo
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - dependencies
