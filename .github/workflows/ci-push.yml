@@ -3,9 +3,6 @@ name: CI - Push
 on:
   workflow_call:
     inputs:
-      image-name:
-        required: true
-        type: string
       dockerfile-path:
         required: false
         default: './Dockerfile'
