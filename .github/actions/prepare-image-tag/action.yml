@@ -24,23 +24,28 @@ runs:
     - id: set
       shell: bash
       run: |
-        REPO=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+        set -euo pipefail
+
+        REPO=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
         REGISTRY="${{ inputs.registry }}"
 
-        echo "repo=$REPO" >> $GITHUB_OUTPUT
+        echo "repo=$REPO" >> "$GITHUB_OUTPUT"
 
-        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-          TAG="${{ github.ref_name }}"
-          
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+        if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+          TAG="${GITHUB_REF_NAME}"
 
-          echo "push_tags<<EOT" >> $GITHUB_OUTPUT
-          echo "$REGISTRY/$REPO:$TAG" >> $GITHUB_OUTPUT
-          echo "$REGISTRY/$REPO:latest" >> $GITHUB_OUTPUT
-          echo "EOT" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "push_tags<<EOF"
+            echo "$REGISTRY/$REPO:$TAG"
+            echo "$REGISTRY/$REPO:latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
         else
-          TAG="${{ github.sha }}"
-          
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "push_tags=$REGISTRY/$REPO:$TAG" >> $GITHUB_OUTPUT
+          TAG="${GITHUB_SHA}"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "push_tags=$REGISTRY/$REPO:$TAG" >> "$GITHUB_OUTPUT"
         fi
