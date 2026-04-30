@@ -4,12 +4,16 @@ description: Scan container image with Trivy and upload SARIF
 
 inputs:
   image-ref:
-    description: 'Image reference (e.g. myorg/myapp:sha or :tag)'
     required: true
+
   severity:
     required: false
     default: 'CRITICAL,HIGH'
 
+  fail-on-severity:
+    description: 'Fail pipeline if this severity is found'
+    required: false
+    default: 'CRITICAL'
 runs:
   using: composite
   steps:
@@ -18,7 +22,8 @@ runs:
       with:
         image-ref: ${{ inputs.image-ref }}
         format: 'table'
-        severity: ${{ inputs.severity }}
+        severity: ${{ inputs.fail-on-severity }}
+        exit-code: '1'
 
 #    - name: Run Trivy image scan (SARIF)
 #      uses: aquasecurity/trivy-action@v0.24.0

@@ -4,29 +4,32 @@ description: Run Trivy filesystem scan and upload SARIF to GitHub Security tab
 
 inputs:
   scan-ref:
-    description: 'Path to scan (default repo root)'
     required: false
     default: '.'
   severity:
-    description: 'Severities to report'
     required: false
     default: 'CRITICAL,HIGH'
 
+  fail-on-severity:
+    description: 'Fail pipeline if this severity is found'
+    required: false
+    default: 'CRITICAL'
+    
 runs:
   using: composite
   steps:
-    # Step 1: imprimir no console
     - name: Run Trivy filesystem scan (console)
       uses: aquasecurity/trivy-action@0.24.0
       with:
         scan-type: 'fs'
         scan-ref: ${{ inputs.scan-ref }}
-        format: 'table'        # imprime no terminal
-        severity: ${{ inputs.severity }}
+        format: 'table'
+        severity: ${{ inputs.fail-on-severity }}
         skip-dirs: .git
         ignore-unfixed: true
         scanners: vuln,secret,misconfig
         args: --skip-vcs
+        exit-code: '1'
 
     # Step 2: gerar SARIF para GitHub
 #    - name: Run Trivy filesystem scan (SARIF)
