@@ -36,7 +36,21 @@ jobs:
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@v1
 
   # -----------------------------
-  # 2️⃣ Trivy Config (Dockerfile lint)
+  # 2️⃣ Secret Scan (gitleaks)
+  # -----------------------------
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@v1
+
+  # -----------------------------
+  # 3️⃣ Trivy Config (Dockerfile lint)
   # -----------------------------
   trivy-config:
     name: Trivy Config Scan
@@ -51,7 +65,7 @@ jobs:
           config-path: ${{ inputs.dockerfile-path }}
 
   # -----------------------------
-  # 3️⃣ SonarQube (não roda para tag)
+  # 4️⃣ SonarQube (não roda para tag)
   # -----------------------------
   sonarqube:
     name: SonarQube
@@ -70,12 +84,12 @@ jobs:
           sonar-args: ""
 
   # -----------------------------
-  # 4️⃣ Prepare Image
+  # 5️⃣ Prepare Image
   # -----------------------------
   prepare-image:
     name: Prepare image
     runs-on: ubuntu-latest
-    needs: [trivy-fs, trivy-config, sonarqube]
+    needs: [trivy-fs, secret-scan, trivy-config, sonarqube]
     outputs:
       image_repo: ${{ steps.prepare.outputs.repo }}
       image_tag: ${{ steps.prepare.outputs.tag }}
@@ -85,7 +99,7 @@ jobs:
         uses: TourinhoM/org-ci-platform/.github/actions/prepare-image-tag@v1
 
   # -----------------------------
-  # 5️⃣ Docker Build
+  # 6️⃣ Docker Build
   # -----------------------------
   docker-build:
     name: Docker Build
@@ -102,7 +116,7 @@ jobs:
           dockerfile-path: ./Dockerfile
 
   # -----------------------------
-  # 6️⃣ Trivy Image
+  # 7️⃣ Trivy Image
   # -----------------------------
   trivy-image:
     name: Trivy Container Scan
@@ -121,7 +135,7 @@ jobs:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
 
   # -----------------------------
-  # 7️⃣ Docker Push
+  # 8️⃣ Docker Push
   # -----------------------------
   docker-push:
     name: Docker Push

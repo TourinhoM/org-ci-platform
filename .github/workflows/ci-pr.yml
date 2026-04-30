@@ -32,7 +32,21 @@ jobs:
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@v1
 
   # -----------------------------
-  # 2️⃣ SonarQube
+  # 2️⃣ Secret Scan (gitleaks)
+  # -----------------------------
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@v1
+
+  # -----------------------------
+  # 3️⃣ SonarQube
   # -----------------------------
   sonarqube:
     name: SonarQube
@@ -52,7 +66,7 @@ jobs:
           sonar-args: ""
 
   # -----------------------------
-  # 3️⃣ Semantic Commit Check
+  # 4️⃣ Semantic Commit Check
   # -----------------------------
   semantic-commit-check:
     name: Semantic Commit Check

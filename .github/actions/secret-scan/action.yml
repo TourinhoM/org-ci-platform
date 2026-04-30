@@ -1,0 +1,16 @@
+# Single responsibility: scan de secret leak no historico git.
+# Camada de defesa em profundidade — Trivy ja faz secret scan no working tree;
+# gitleaks vai mais a fundo em padroes de credenciais (AWS, Azure, GCP, Stripe,
+# JWT, GitHub PAT, etc.) e analisa historico completo.
+#
+# Para uso em ORGANIZATIONS, `GITLEAKS_LICENSE` e obrigatorio. Para repos
+# pessoais (publico ou privado), funciona sem license.
+name: Secret Scan
+description: Gitleaks scan no historico git
+
+runs:
+  using: composite
+  steps:
+    - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
