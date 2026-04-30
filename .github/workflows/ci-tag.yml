@@ -8,6 +8,11 @@ on:
         default: './Dockerfile'
         type: string
 
+# Tag pipeline produz artefato versionado — nao cancelar em meio ao push.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
 
   # -----------------------------

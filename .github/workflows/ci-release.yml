@@ -3,6 +3,11 @@ name: CI - Semantic Release
 on:
   workflow_call:
 
+# Release nao deve ser cancelado em meio ao processo (cria tag, release, changelog).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   semantic-release:
     name: Semantic Release
