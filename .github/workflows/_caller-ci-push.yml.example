@@ -1,0 +1,21 @@
+name: CI - Push
+
+on:
+  push:
+    branches:
+      - '**'
+      - '!main'
+
+jobs:
+  ci:
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+      packages: write
+    uses: TourinhoM/org-ci-platform/.github/workflows/ci-push.yml@main
+    with:
+      image-name: ghcr.io/TourinhoM/meu-app
+      coverage-exclusions: "./src/**"
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
