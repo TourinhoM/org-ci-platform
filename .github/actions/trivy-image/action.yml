@@ -8,12 +8,12 @@ inputs:
 
   severity:
     required: false
-    default: 'CRITICAL,HIGH'
+    default: 'LOW,MEDIUM,HIGH,CRITICAL'
 
   fail-on-severity:
     description: 'Fail pipeline if this severity is found'
     required: false
-    default: 'CRITICAL'
+    default: 'HIGH,CRITICAL'
 runs:
   using: composite
   steps:

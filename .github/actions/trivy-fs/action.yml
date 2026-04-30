@@ -8,12 +8,12 @@ inputs:
     default: '.'
   severity:
     required: false
-    default: 'CRITICAL,HIGH'
+    default: 'LOW,MEDIUM,HIGH,CRITICAL'
 
   fail-on-severity:
     description: 'Fail pipeline if this severity is found'
     required: false
-    default: 'CRITICAL'
+    default: 'HIGH,CRITICAL'
     
 runs:
   using: composite
@@ -28,7 +28,6 @@ runs:
         skip-dirs: .git
         ignore-unfixed: true
         scanners: vuln,secret,misconfig
-        args: --skip-vcs
         exit-code: '1'
 
     # Step 2: gerar SARIF para GitHub
