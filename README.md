@@ -88,8 +88,16 @@ Os callers usam `${{ github.repository_owner }}` no `uses:`, então funcionam em
 | `SONAR_TOKEN` | secret | PR, Push | Token SonarCloud |
 | `SONAR_ORG` | var | PR, Push | Organização SonarCloud |
 | `SONAR_COVERAGE_EXCLUSIONS` | var | PR (opcional) | Glob de paths excluídos do coverage |
+| `RELEASE_APP_ID` | var | Release (opcional) | App ID do GitHub App usado pra push de tag |
+| `RELEASE_APP_PRIVATE_KEY` | secret | Release (opcional) | Conteúdo do `.pem` do GitHub App |
 
 Imagens vão pro **GHCR** usando `GITHUB_TOKEN` automaticamente — sem secret adicional. Nome da imagem é derivado de `${{ github.repository }}` (ex.: `ghcr.io/seu-user/seu-repo:<sha>` em branch, `:<tag>` + `:latest` em tag).
+
+#### Por que `RELEASE_APP_*` é opcional mas recomendado
+
+GitHub não dispara workflows a partir de eventos gerados pelo `GITHUB_TOKEN` (safety contra loops). Sem o GitHub App, semantic-release cria a tag mas o `ci-tag.yml` não roda. Com App ID + Private Key configurados, `ci-release.yml` gera install token efêmero via `actions/create-github-app-token` e empurra a tag com identidade do App — disparando `ci-tag.yml` normalmente.
+
+Permissões mínimas do App: **Contents: Read & Write**, **Issues: Write**, **Pull requests: Write**, **Metadata: Read**.
 
 ---
 
