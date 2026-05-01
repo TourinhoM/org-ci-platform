@@ -15,6 +15,11 @@ inputs:
     required: false
     default: ''
 
+outputs:
+  digest:
+    description: 'Image digest (sha256:...) — necessario para assinatura por digest imutavel'
+    value: ${{ steps.push.outputs.digest }}
+
 runs:
   using: composite
   steps:
@@ -35,12 +40,20 @@ runs:
         password: ${{ env.LOGIN_PASSWORD }}
 
     - name: Tag and push
+      id: push
       shell: bash
       env:
         PUSH_TAGS: ${{ inputs.push-tags }}
       run: |
+        : > /tmp/push.out
         echo "$PUSH_TAGS" | while IFS= read -r tag; do
           [ -z "$tag" ] && continue
           docker tag ${{ inputs.image-ref }} "$tag"
-          docker push "$tag"
+          docker push "$tag" | tee -a /tmp/push.out
         done
+        DIGEST=$(grep -oE 'sha256:[a-f0-9]{64}' /tmp/push.out | head -1)
+        if [ -z "$DIGEST" ]; then
+          echo "::error::nao consegui extrair digest do output do docker push"
+          exit 1
+        fi
+        echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"

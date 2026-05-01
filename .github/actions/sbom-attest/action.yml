@@ -1,0 +1,55 @@
+# Single responsibility: gera SBOM SPDX da imagem e attesta via cosign.
+#
+# Fluxo:
+#   1. syft escaneia a imagem por digest e produz spdx-json.
+#   2. cosign attest cria um in-toto Statement com o SBOM como predicado.
+#
+# Visibilidade controla --tlog-upload (mesmo padrao do cosign-sign):
+#   - publico: attestation sobe pro Rekor.
+#   - privado: --tlog-upload=false, attestation vive no registry.
+name: SBOM Attest
+description: Gera SPDX SBOM com syft e attesta via cosign. Pula Rekor para repos privados.
+
+inputs:
+  image-ref:
+    description: 'Image ref sem tag (e.g. ghcr.io/org/repo)'
+    required: true
+  image-digest:
+    description: 'Digest sha256:... da imagem ja publicada'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install cosign
+      uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+
+    - name: Install syft
+      uses: anchore/sbom-action/download-syft@f6c3d0fe42c3cf876e3462574e4c9416b5e0f07a # v0.9.0
+
+    - name: Detect repo visibility
+      id: vis
+      shell: bash
+      run: |
+        if [ "${{ github.event.repository.visibility }}" = "public" ]; then
+          echo "tlog=" >> "$GITHUB_OUTPUT"
+        else
+          echo "tlog=--tlog-upload=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Generate SBOM
+      shell: bash
+      env:
+        TARGET: ${{ inputs.image-ref }}@${{ inputs.image-digest }}
+      run: syft "$TARGET" -o spdx-json=sbom.spdx.json
+
+    - name: Attest SBOM
+      shell: bash
+      env:
+        TLOG: ${{ steps.vis.outputs.tlog }}
+        TARGET: ${{ inputs.image-ref }}@${{ inputs.image-digest }}
+      run: |
+        cosign attest --yes $TLOG \
+          --predicate sbom.spdx.json \
+          --type spdxjson \
+          "$TARGET"

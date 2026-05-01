@@ -104,12 +104,46 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
     env:
       LOGIN_USERNAME: ${{ github.actor }}
       LOGIN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: TourinhoM/org-ci-platform/.github/actions/docker-push-artifact@v1
+      - id: push
+        uses: TourinhoM/org-ci-platform/.github/actions/docker-push-artifact@v1
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
           push-tags: ${{ needs.prepare-image.outputs.push_tags }}
           registry: ghcr.io
+
+  # -----------------------------
+  # 7️⃣ Supply-chain attestations
+  # -----------------------------
+  # Tres steps independentes: cosign sign, SBOM attest, SLSA provenance.
+  # Cada um detecta visibilidade do repo e adapta --tlog-upload:
+  # - publico: assinatura/attestations vao pro Rekor publico (auditavel).
+  # - privado: --tlog-upload=false, vivem so no GHCR junto a imagem.
+  supply-chain:
+    name: Supply chain attestations
+    runs-on: ubuntu-latest
+    needs: [docker-push, prepare-image]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write    # OIDC para Fulcio (cosign keyless)
+    steps:
+      - uses: TourinhoM/org-ci-platform/.github/actions/cosign-sign@v1
+        with:
+          image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}
+          image-digest: ${{ needs.docker-push.outputs.digest }}
+
+      - uses: TourinhoM/org-ci-platform/.github/actions/sbom-attest@v1
+        with:
+          image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}
+          image-digest: ${{ needs.docker-push.outputs.digest }}
+
+      - uses: TourinhoM/org-ci-platform/.github/actions/slsa-attest@v1
+        with:
+          image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}
+          image-digest: ${{ needs.docker-push.outputs.digest }}

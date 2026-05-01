@@ -1,0 +1,41 @@
+# Single responsibility: assina imagem por digest via Sigstore keyless.
+#
+# Modelo de transparencia adapta a visibilidade do repo consumer:
+# - publico: assinatura sobe pro Rekor publico (auditavel por terceiros)
+# - privado: --tlog-upload=false, assinatura fica so no registry junto a imagem
+#
+# Em ambos os casos o cert e emitido pelo Fulcio publico via OIDC do GitHub —
+# id-token: write e obrigatorio no job consumer.
+name: Cosign Sign Image
+description: Assina imagem por digest com cosign keyless. Pula Rekor para repos privados.
+
+inputs:
+  image-ref:
+    description: 'Image ref sem tag (e.g. ghcr.io/org/repo)'
+    required: true
+  image-digest:
+    description: 'Digest sha256:... da imagem ja publicada'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install cosign
+      uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+
+    - name: Detect repo visibility
+      id: vis
+      shell: bash
+      run: |
+        if [ "${{ github.event.repository.visibility }}" = "public" ]; then
+          echo "tlog=" >> "$GITHUB_OUTPUT"
+        else
+          echo "tlog=--tlog-upload=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Sign image
+      shell: bash
+      env:
+        TLOG: ${{ steps.vis.outputs.tlog }}
+        TARGET: ${{ inputs.image-ref }}@${{ inputs.image-digest }}
+      run: cosign sign --yes $TLOG "$TARGET"

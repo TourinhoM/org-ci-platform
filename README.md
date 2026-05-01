@@ -23,7 +23,7 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
 | Pull Request → main | `ci-pr.yml` | Trivy FS · Secret Scan · Unit test → SonarQube → Semantic commit check |
 | Push em branch (≠ main) | `ci-push.yml` | Trivy FS · Secret Scan · Trivy Config · Unit test → SonarQube → Docker build → Trivy image → Docker push |
 | Push em main | `ci-release.yml` | Semantic Release (cria tag a partir de conventional commits) |
-| Tag `v*` | `ci-tag.yml` | Trivy FS · Trivy Config → Docker build → Trivy image → Docker push (com `:latest`) |
+| Tag `v*` | `ci-tag.yml` | Trivy FS · Trivy Config → Docker build → Trivy image → Docker push → cosign sign · SBOM · SLSA |
 
 > Optei por per-event no lugar de um workflow único decidindo por `if:` — fica mais explícito, evita árvore de condicionais misturando lógica de eventos diferentes, e cada arquivo de workflow tem responsabilidade única.
 
@@ -42,8 +42,11 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
     unit-test/               # Testes Node (npm test, publica coverage/lcov.info)
     unit-test-python/        # Testes Python (pytest, publica coverage.xml)
     docker-build-artifact/   # Build → tar → upload artifact (sem push)
-    docker-push-artifact/    # Download artifact → load → push
+    docker-push-artifact/    # Download artifact → load → push (emite digest)
     prepare-image-tag/       # Calcula repo + tag + push_tags a partir do evento
+    cosign-sign/             # Assina imagem por digest (keyless), tlog adapta a visibilidade
+    sbom-attest/             # Gera SBOM SPDX (syft) e attesta com cosign
+    slsa-attest/             # Predicado SLSA v1 in-toto + cosign attest
     semantic-commit-check/   # commitlint pra conventional commits
 
   workflows/
@@ -117,6 +120,48 @@ Cada action carrega seu próprio `policy.rego`. Pra mudar a threshold, edite a p
 Actions third-party (Trivy, Sonar, Docker, Semantic Release, Commitlint, Gitleaks) pinned por **SHA do commit** com comentário `# vX.Y.Z` pra leitura humana. Mitigação contra tag rewrite ([tj-actions/changed-files em 2024](https://github.com/tj-actions/changed-files/issues/2463) é o caso canônico).
 
 Dependabot (`.github/dependabot.yml`) bumpa SHA + comentário semanalmente.
+
+### Image attestations (Sigstore keyless)
+
+Em `ci-tag.yml`, depois do `docker-push`, o job `supply-chain` aplica três attestations sobre o **digest** da imagem:
+
+| Action | Predicado | O que assina |
+|--------|-----------|--------------|
+| `cosign-sign` | (signature) | A própria imagem, prova de origem |
+| `sbom-attest` | `spdxjson` | SBOM SPDX gerado pelo syft |
+| `slsa-attest` | `slsaprovenance1` | Predicado SLSA v1 in-toto (workflow ref + commit + run) |
+
+Todos usam **cosign keyless** (cert efêmero do Fulcio via OIDC do GitHub Actions, sem chave persistente).
+
+#### Política de transparência adapta à visibilidade do repo
+
+Detecção via `${{ github.event.repository.visibility }}`:
+
+- **Repo público** → `cosign sign/attest` faz upload pro Rekor público. Auditável por terceiros via `rekor-cli search`.
+- **Repo privado** → `--tlog-upload=false`. Assinatura/attestation ficam **só no GHCR junto à imagem**, sem metadados em log público.
+
+#### Verificação
+
+```bash
+# Repo público — verificação completa com Rekor
+cosign verify \
+  --certificate-identity-regexp 'github.com/<owner>/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/<owner>/<repo>@sha256:<digest>
+
+# Repo privado — sem prova de timestamp do Rekor
+cosign verify --insecure-ignore-tlog \
+  --certificate-identity-regexp 'github.com/<owner>/.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/<owner>/<repo>@sha256:<digest>
+
+# Baixar SBOM SPDX da attestation
+cosign download attestation \
+  --predicate-type https://spdx.dev/Document \
+  ghcr.io/<owner>/<repo>@sha256:<digest>
+```
+
+> **Por que predicado SLSA manual em vez de `actions/attest-build-provenance@v1`:** a action oficial sempre publica no Rekor público, sem flag pra desativar. O caminho manual permite controlar a flag `--tlog-upload` por visibilidade. Em produção real, a única diferença seria trocar `cosign keyless` por `cosign sign --key awskms://...` (KMS) — arquitetura idêntica.
 
 ---
 

@@ -1,0 +1,92 @@
+# Single responsibility: gera predicado SLSA v1 in-toto e attesta via cosign.
+#
+# Por que predicado manual em vez de actions/attest-build-provenance@v1:
+#   - aquela action sempre publica no Rekor publico (sem flag tlog).
+#   - aqui controlamos a flag baseado em visibilidade (publica/privada).
+#   - estrutura do predicado e o padrao enterprise (mesmo que se faria com
+#     cosign+KMS em producao); aqui usamos keyless por conta de homelab.
+#
+# Permissions necessarias no job consumer:
+#   id-token: write (OIDC para Fulcio)
+#   packages: write (escrever attestation no GHCR)
+name: SLSA Provenance Attest
+description: Gera SLSA v1 in-toto provenance e attesta via cosign. Pula Rekor para repos privados.
+
+inputs:
+  image-ref:
+    description: 'Image ref sem tag (e.g. ghcr.io/org/repo)'
+    required: true
+  image-digest:
+    description: 'Digest sha256:... da imagem ja publicada'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install cosign
+      uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
+
+    - name: Detect repo visibility
+      id: vis
+      shell: bash
+      run: |
+        if [ "${{ github.event.repository.visibility }}" = "public" ]; then
+          echo "tlog=" >> "$GITHUB_OUTPUT"
+        else
+          echo "tlog=--tlog-upload=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Generate SLSA v1 predicate
+      shell: bash
+      env:
+        IMAGE_REF: ${{ inputs.image-ref }}
+        DIGEST: ${{ inputs.image-digest }}
+      run: |
+        DIGEST_HASH="${DIGEST#sha256:}"
+        cat > slsa.json <<EOF
+        {
+          "_type": "https://in-toto.io/Statement/v1",
+          "subject": [{
+            "name": "${IMAGE_REF}",
+            "digest": {"sha256": "${DIGEST_HASH}"}
+          }],
+          "predicateType": "https://slsa.dev/provenance/v1",
+          "predicate": {
+            "buildDefinition": {
+              "buildType": "https://github.com/actions/runner/v1",
+              "externalParameters": {
+                "workflow": {
+                  "ref": "${{ github.ref }}",
+                  "repository": "${{ github.server_url }}/${{ github.repository }}",
+                  "path": "${{ github.workflow_ref }}"
+                }
+              },
+              "internalParameters": {
+                "github": {
+                  "event_name": "${{ github.event_name }}",
+                  "runner_environment": "github-hosted"
+                }
+              }
+            },
+            "runDetails": {
+              "builder": {
+                "id": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "metadata": {
+                "invocationId": "${{ github.run_id }}-${{ github.run_attempt }}"
+              }
+            }
+          }
+        }
+        EOF
+
+    - name: Attest SLSA provenance
+      shell: bash
+      env:
+        TLOG: ${{ steps.vis.outputs.tlog }}
+        TARGET: ${{ inputs.image-ref }}@${{ inputs.image-digest }}
+      run: |
+        cosign attest --yes $TLOG \
+          --predicate slsa.json \
+          --type slsaprovenance1 \
+          "$TARGET"
