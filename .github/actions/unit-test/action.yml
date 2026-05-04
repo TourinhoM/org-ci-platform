@@ -1,5 +1,5 @@
 name: Unit Test
-description: Run unit tests with coverage and publish lcov for Sonar
+description: Run unit tests and publish coverage artifact (lcov) for Sonar
 
 inputs:
   node-version:
@@ -10,6 +10,14 @@ runs:
   using: composite
   steps:
 
+    # Detecta gerenciador antes de tudo. Setup-node usa 'cache' diferente por
+    # gerenciador, e pnpm tem que estar disponivel antes do setup-node pra
+    # cache funcionar.
+    - name: Setup pnpm
+      if: ${{ hashFiles('pnpm-lock.yaml') != '' }}
+      uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d # v6.0.5
+      # Sem version: pega o pnpm pinado em packageManager do package.json.
+
     - name: Setup Node
       uses: actions/setup-node@v4
       with:
@@ -19,7 +27,6 @@ runs:
       shell: bash
       run: |
         if [ -f pnpm-lock.yaml ]; then
-          npm install -g pnpm
           pnpm install --frozen-lockfile
         elif [ -f package-lock.json ]; then
           npm ci
@@ -27,12 +34,23 @@ runs:
           npm install
         fi
 
-    - name: Run tests with coverage
+    # Roda via gerenciador correto. Sem -- --coverage cravado: nem todo
+    # runner aceita esse flag (Japa do Adonis ignora, npm test puro funciona).
+    # Coverage em si e responsabilidade do consumer configurar (jest/vitest
+    # built-in, ou c8 wrappando o test command).
+    - name: Run tests
       shell: bash
       run: |
-        npm test -- --coverage
+        if [ -f pnpm-lock.yaml ]; then
+          pnpm test
+        else
+          npm test
+        fi
 
+    # Upload condicional: se o consumer nao gerar lcov.info, segue sem
+    # quebrar. Sonar simplesmente nao recebe coverage e reporta 0.
     - name: Upload coverage artifact
+      if: ${{ hashFiles('coverage/lcov.info') != '' }}
       uses: actions/upload-artifact@v4
       with:
         name: coverage
