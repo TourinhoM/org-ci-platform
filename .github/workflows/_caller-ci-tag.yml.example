@@ -13,5 +13,5 @@ jobs:
       actions: read
       packages: write
       id-token: write       # OIDC para cosign keyless (supply-chain attestations)
-    uses: TourinhoM/org-ci-platform/.github/workflows/ci-tag.yml@v1
+    uses: TourinhoM/org-ci-platform/.github/workflows/ci-tag.yml@main
     secrets: inherit

@@ -11,7 +11,7 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-    uses: TourinhoM/org-ci-platform/.github/workflows/ci-release.yml@v1
+    uses: TourinhoM/org-ci-platform/.github/workflows/ci-release.yml@main
     secrets:
       # Opcional. Sem isso, tag criada por semantic-release nao dispara ci-tag.yml
       # (push via GITHUB_TOKEN nao gera novos workflow runs — safety do GitHub).

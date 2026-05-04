@@ -13,7 +13,7 @@ jobs:
       security-events: write
       actions: read
       packages: write
-    uses: TourinhoM/org-ci-platform/.github/workflows/ci-push.yml@v1
+    uses: TourinhoM/org-ci-platform/.github/workflows/ci-push.yml@main
     with:
       coverage-exclusions: "./src/**"
     secrets:

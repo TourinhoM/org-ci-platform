@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
 
   # -----------------------------
   # 2️⃣ Secret Scan (gitleaks)
@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@main
 
   # -----------------------------
   # 3️⃣ Trivy Config (Dockerfile lint)
@@ -60,7 +60,7 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v5
-      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-config@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-config@main
         with:
           config-path: ${{ inputs.dockerfile-path }}
 
@@ -74,8 +74,8 @@ jobs:
     if: "!startsWith(github.ref, 'refs/tags/')"
     steps:
       - uses: actions/checkout@v5
-      - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@v1
-      - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
@@ -96,7 +96,7 @@ jobs:
       push_tags: ${{ steps.prepare.outputs.push_tags }}
     steps:
       - id: prepare
-        uses: TourinhoM/org-ci-platform/.github/actions/prepare-image-tag@v1
+        uses: TourinhoM/org-ci-platform/.github/actions/prepare-image-tag@main
 
   # -----------------------------
   # 6️⃣ Docker Build
@@ -110,7 +110,7 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v5
-      - uses: TourinhoM/org-ci-platform/.github/actions/docker-build-artifact@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/docker-build-artifact@main
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
           dockerfile-path: ./Dockerfile
@@ -130,7 +130,7 @@ jobs:
         with:
           name: docker-image
       - run: docker load -i image.tar
-      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-image@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-image@main
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
 
@@ -148,7 +148,7 @@ jobs:
       LOGIN_USERNAME: ${{ github.actor }}
       LOGIN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: TourinhoM/org-ci-platform/.github/actions/docker-push-artifact@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/docker-push-artifact@main
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
           push-tags: ${{ needs.prepare-image.outputs.push_tags }}

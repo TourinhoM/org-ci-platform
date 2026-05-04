@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
 
   # -----------------------------
   # 2️⃣ Secret Scan (gitleaks)
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@main
 
   # -----------------------------
   # 3️⃣ SonarQube
@@ -57,8 +57,8 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@v1
-      - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
@@ -80,4 +80,4 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: TourinhoM/org-ci-platform/.github/actions/semantic-commit-check@v1
+      - uses: TourinhoM/org-ci-platform/.github/actions/semantic-commit-check@main
