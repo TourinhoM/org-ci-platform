@@ -50,6 +50,7 @@ runs:
         TARGET: ${{ inputs.image-ref }}@${{ inputs.image-digest }}
       run: |
         cosign attest --yes $TLOG \
+          --timestamp-server-url https://timestamp.sigstore.dev/api/v1/timestamp \
           --predicate sbom.spdx.json \
           --type spdxjson \
           "$TARGET"

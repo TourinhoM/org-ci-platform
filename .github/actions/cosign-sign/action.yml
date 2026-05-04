@@ -38,4 +38,7 @@ runs:
       env:
         TLOG: ${{ steps.vis.outputs.tlog }}
         TARGET: ${{ inputs.image-ref }}@${{ inputs.image-digest }}
-      run: cosign sign --yes $TLOG "$TARGET"
+      run: |
+        cosign sign --yes $TLOG \
+          --timestamp-server-url https://timestamp.sigstore.dev/api/v1/timestamp \
+          "$TARGET"
