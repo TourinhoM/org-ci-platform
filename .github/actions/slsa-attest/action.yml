@@ -38,43 +38,31 @@ runs:
 
     - name: Generate SLSA v1 predicate
       shell: bash
-      env:
-        IMAGE_REF: ${{ inputs.image-ref }}
-        DIGEST: ${{ inputs.image-digest }}
       run: |
-        DIGEST_HASH="${DIGEST#sha256:}"
         cat > slsa.json <<EOF
         {
-          "_type": "https://in-toto.io/Statement/v1",
-          "subject": [{
-            "name": "${IMAGE_REF}",
-            "digest": {"sha256": "${DIGEST_HASH}"}
-          }],
-          "predicateType": "https://slsa.dev/provenance/v1",
-          "predicate": {
-            "buildDefinition": {
-              "buildType": "https://github.com/actions/runner/v1",
-              "externalParameters": {
-                "workflow": {
-                  "ref": "${{ github.ref }}",
-                  "repository": "${{ github.server_url }}/${{ github.repository }}",
-                  "path": "${{ github.workflow_ref }}"
-                }
-              },
-              "internalParameters": {
-                "github": {
-                  "event_name": "${{ github.event_name }}",
-                  "runner_environment": "github-hosted"
-                }
+          "buildDefinition": {
+            "buildType": "https://github.com/actions/runner/v1",
+            "externalParameters": {
+              "workflow": {
+                "ref": "${{ github.ref }}",
+                "repository": "${{ github.server_url }}/${{ github.repository }}",
+                "path": "${{ github.workflow_ref }}"
               }
             },
-            "runDetails": {
-              "builder": {
-                "id": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-              },
-              "metadata": {
-                "invocationId": "${{ github.run_id }}-${{ github.run_attempt }}"
+            "internalParameters": {
+              "github": {
+                "event_name": "${{ github.event_name }}",
+                "runner_environment": "github-hosted"
               }
+            }
+          },
+          "runDetails": {
+            "builder": {
+              "id": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            },
+            "metadata": {
+              "invocationId": "${{ github.run_id }}-${{ github.run_attempt }}"
             }
           }
         }
