@@ -30,7 +30,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@v1
@@ -44,7 +44,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@v1
@@ -59,7 +59,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-config@v1
         with:
           config-path: ${{ inputs.dockerfile-path }}
@@ -73,7 +73,7 @@ jobs:
     needs: trivy-fs
     if: "!startsWith(github.ref, 'refs/tags/')"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@v1
       - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@v1
         env:
@@ -109,7 +109,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: TourinhoM/org-ci-platform/.github/actions/docker-build-artifact@v1
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
@@ -126,7 +126,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: docker-image
       - run: docker load -i image.tar
