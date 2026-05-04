@@ -87,7 +87,7 @@ Os callers usam `${{ github.repository_owner }}` no `uses:`, então funcionam em
 |------|------|------|-----------|
 | `SONAR_TOKEN` | secret | PR, Push | Token SonarCloud |
 | `SONAR_ORG` | var | PR, Push | Organização SonarCloud |
-| `SONAR_COVERAGE_EXCLUSIONS` | var | PR (opcional) | Glob de paths excluídos do coverage |
+| `SONAR_COVERAGE_EXCLUSIONS` | var | PR, Push (opcional) | Glob de paths excluídos da medição de cobertura. Configurar como repo var em `Settings → Secrets and variables → Actions → Variables → New repository variable`. Ex: **Name** = `SONAR_COVERAGE_EXCLUSIONS`, **Value** = `**/*.spec.ts,**/__tests__/**`. Se não setada, nada é excluído. |
 | `RELEASE_APP_ID` | var | Release (opcional) | App ID do GitHub App usado pra push de tag |
 | `RELEASE_APP_PRIVATE_KEY` | secret | Release (opcional) | Conteúdo do `.pem` do GitHub App |
 

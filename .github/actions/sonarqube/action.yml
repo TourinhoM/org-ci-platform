@@ -84,6 +84,6 @@ runs:
           -Dsonar.organization=${{ env.SONAR_ORG }}
           -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
           -Dsonar.sources=.
-          -Dsonar.coverage.exclusions=src/**
+          ${{ env.COVERAGE_EXCLUSION_ARGS }}
           ${{ env.COVERAGE_ARGS }}
           ${{ inputs.sonar-args }}
