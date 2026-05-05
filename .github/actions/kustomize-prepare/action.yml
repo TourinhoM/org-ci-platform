@@ -44,11 +44,14 @@ runs:
         # aceito. Como esta ordenado lex, basta comparar com o ultimo
         # aceito. Aninhadas costumam ser Components que falham build
         # standalone — entao filtra-las eh seguro.
+        # Tracker explicito 'last' (em vez de ${accepted[-1]}) — bash
+        # falha "bad subscript" em array vazio mesmo com ':-' fallback.
         accepted=()
+        last=""
         for dir in "${candidates[@]}"; do
-          last="${accepted[-1]:-}"
           if [[ -z "$last" || "$dir" != "$last"/* ]]; then
             accepted+=("$dir")
+            last="$dir"
           fi
         done
 
