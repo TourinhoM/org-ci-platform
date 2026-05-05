@@ -6,10 +6,13 @@
 name: Lint
 
 on:
-  pull_request:
-    branches: [main]
+  # Qualquer branch — feedback imediato em feature branches; abrir PR
+  # nao duplica o run (PR mostra o check do push existente).
   push:
-    branches: [main]
+  schedule:
+    - cron: '0 8 * * 1'
+  # Botao manual no GitHub UI pra debug sem precisar de novo commit.
+  workflow_dispatch:
 
 jobs:
   lint:
