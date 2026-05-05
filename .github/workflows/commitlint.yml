@@ -1,0 +1,29 @@
+name: Commitlint
+
+# Workflow callable: valida commits no formato Conventional Commits.
+# Wrapper thin sobre a composite action semantic-commit-check, que ja eh
+# usada pelo ci-pr.yml em repos de aplicacao. Aqui ela eh exposta como
+# workflow standalone pra repos GitOps que nao consomem ci-pr.yml (eles
+# nao tem unit-test, sonarqube, docker build — so manifests k8s).
+#
+# Plug-and-play: zero inputs. fetch-depth: 0 eh obrigatorio pro commitlint
+# enxergar o historico do PR (vs apenas o head commit).
+on:
+  workflow_call:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  commitlint:
+    name: Commit messages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: TourinhoM/org-ci-platform/.github/actions/semantic-commit-check@main

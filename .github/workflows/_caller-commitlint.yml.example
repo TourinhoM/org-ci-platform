@@ -1,0 +1,22 @@
+# Exemplo de uso do reusable workflow commitlint em repo GitOps.
+# Copie para .github/workflows/commitlint.yml no repo consumer.
+#
+# Valida commits no formato Conventional Commits (feat/fix/docs/chore/...).
+# Sem isso, mensagens livres viram bagunca e quebram changelog/semver automatico.
+#
+# Trigger SO em pull_request: commitlint deve validar commits que estao
+# prestes a ir pra main, nao commits WIP em feature branches (que costumam
+# ser squashed/rebased antes do PR). Validar push spamma falhas em mensagens
+# tipo 'wip: testing' que serao reescritas mesmo.
+name: Commitlint
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  commitlint:
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: TourinhoM/org-ci-platform/.github/workflows/commitlint.yml@main

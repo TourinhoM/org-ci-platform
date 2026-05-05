@@ -24,6 +24,7 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
 | Push em branch (≠ main) | `ci-push.yml` | Trivy FS · Secret Scan · Trivy Config · Unit test → SonarQube → Docker build → Trivy image → Docker push |
 | Push em main | `ci-release.yml` | Semantic Release (cria tag a partir de conventional commits) |
 | Tag `v*` | `ci-tag.yml` | Trivy FS · Trivy Config → Docker build → Trivy image → Docker push → cosign sign · SBOM · SLSA |
+| Repos GitOps (manifests k8s) | `lint-k8s.yml` | Schema (kubeconform) · Best-practices (kube-linter) · Misconfig (trivy-k8s) — todos sobre output do `kustomize build` |
 
 > Optei por per-event no lugar de um workflow único decidindo por `if:` — fica mais explícito, evita árvore de condicionais misturando lógica de eventos diferentes, e cada arquivo de workflow tem responsabilidade única.
 
@@ -49,16 +50,24 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
     slsa-attest/             # Predicado SLSA v1 in-toto + cosign attest
     semantic-commit-check/   # commitlint pra conventional commits
 
+    # Lint de manifests Kubernetes (repos GitOps)
+    kustomize-prepare/       # Install kustomize + auto-discovery top-level
+    kubeconform/             # Schema validation (k8s API + CRDs catalog datreeio)
+    kube-linter/             # Best-practices (resources, probes, securityContext) + SARIF
+    trivy-k8s/               # CIS + NSA misconfig em rendered Kustomize + Rego gate + SARIF
+
   workflows/
     ci-pr.yml
     ci-push.yml
     ci-release.yml
     ci-tag.yml
+    lint-k8s.yml             # Lint k8s pra repos GitOps (zero-input, plug-and-play)
     deploy-railway.yml       # WIP — implementacao planejada
     _caller-ci-pr.yml.example
     _caller-ci-push.yml.example
     _caller-ci-release.yml.example
     _caller-ci-tag.yml.example
+    _caller-lint-k8s.yml.example
 
 templates/                   # Configs opcionais pro projeto consumidor
   .commitlintrc.json
