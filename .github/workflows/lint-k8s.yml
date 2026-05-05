@@ -1,0 +1,80 @@
+name: Lint K8s
+
+# Workflow callable: 3 jobs em paralelo (schema, best-practices, security).
+# Cada um eh wrapper thin sobre uma ferramenta de mercado:
+#   - kubeconform   -> schema (k8s API + CRDs catalog)
+#   - kube-linter   -> best-practices (resources, probes, securityContext)
+#   - trivy-k8s     -> CIS Kubernetes Benchmark + NSA hardening
+# Falha em qualquer job = falha o run, mas todos rodam pra dar visibilidade
+# completa em um unico CI cycle.
+on:
+  workflow_call:
+    inputs:
+      directory:
+        description: 'Diretorio raiz do scan (kube-linter + trivy-k8s).'
+        required: false
+        type: string
+        default: '.'
+      kustomize-dirs:
+        description: 'Diretorios kustomize para kubeconform (um por linha).'
+        required: false
+        type: string
+        default: ''
+      paths:
+        description: 'Paths para kubeconform raw (quando NAO ha kustomize).'
+        required: false
+        type: string
+        default: '.'
+      kubernetes-version:
+        description: 'Versao do schema k8s para kubeconform.'
+        required: false
+        type: string
+        default: 'master'
+      kube-linter-config:
+        description: 'Path para .kube-linter.yaml custom no repo do caller.'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kubeconform:
+    name: Schema (kubeconform)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: TourinhoM/org-ci-platform/.github/actions/kubeconform@main
+        with:
+          kustomize-dirs: ${{ inputs.kustomize-dirs }}
+          paths: ${{ inputs.paths }}
+          kubernetes-version: ${{ inputs.kubernetes-version }}
+
+  kube-linter:
+    name: Best-practices (kube-linter)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: TourinhoM/org-ci-platform/.github/actions/kube-linter@main
+        with:
+          directory: ${{ inputs.directory }}
+          config: ${{ inputs.kube-linter-config }}
+
+  trivy-k8s:
+    name: Security (trivy-k8s)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-k8s@main
+        with:
+          scan-ref: ${{ inputs.directory }}

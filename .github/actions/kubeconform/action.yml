@@ -1,0 +1,79 @@
+# Single responsibility: schema validation de manifests k8s contra a API
+# oficial + CRDs publicos (Argo CD, External Secrets, Prometheus Operator,
+# cert-manager, Traefik) via catalog datreeio/CRDs-catalog.
+#
+# Sem GH Action oficial confiavel para kubeconform — usa install via release
+# binario (~3 linhas). Mantemos thin: a logica complexa de policy/severity
+# fica em trivy-k8s; aqui so eh schema-valid ou nao.
+name: Kubeconform
+description: kubeconform schema validation com CRDs catalog (modo kustomize ou raw)
+
+inputs:
+  kustomize-dirs:
+    description: 'Diretorios kustomize (um por linha). Vazio = roda em paths.'
+    required: false
+    default: ''
+  paths:
+    description: 'Paths/globs para YAML quando NAO usa kustomize.'
+    required: false
+    default: '.'
+  kubernetes-version:
+    description: 'Versao do schema k8s (ex.: 1.30.0, master).'
+    required: false
+    default: 'master'
+  kubeconform-version:
+    description: 'Versao do binario kubeconform.'
+    required: false
+    default: '0.7.0'
+  kustomize-version:
+    description: 'Versao do binario kustomize.'
+    required: false
+    default: '5.8.1'
+
+runs:
+  using: composite
+  steps:
+    - name: Install kubeconform + kustomize
+      shell: bash
+      env:
+        KC_VERSION: ${{ inputs.kubeconform-version }}
+        KS_VERSION: ${{ inputs.kustomize-version }}
+      run: |
+        set -euo pipefail
+        curl -sSL "https://github.com/yannh/kubeconform/releases/download/v${KC_VERSION}/kubeconform-linux-amd64.tar.gz" \
+          | sudo tar -xz -C /usr/local/bin kubeconform
+        curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KS_VERSION}/kustomize_v${KS_VERSION}_linux_amd64.tar.gz" \
+          | sudo tar -xz -C /usr/local/bin kustomize
+
+    - name: Run kubeconform
+      shell: bash
+      env:
+        KUSTOMIZE_DIRS: ${{ inputs.kustomize-dirs }}
+        PATHS: ${{ inputs.paths }}
+        K8S_VERSION: ${{ inputs.kubernetes-version }}
+      run: |
+        set -euo pipefail
+
+        # CRDs catalog cobre Argo CD, ESO, Prometheus Operator, cert-manager etc.
+        CRD_SCHEMA='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+        FLAGS=(
+          -strict
+          -ignore-missing-schemas
+          -kubernetes-version "$K8S_VERSION"
+          -schema-location default
+          -schema-location "$CRD_SCHEMA"
+          -summary -output text
+        )
+
+        if [[ -n "${KUSTOMIZE_DIRS// }" ]]; then
+          while IFS= read -r dir; do
+            [[ -z "$dir" ]] && continue
+            echo "::group::$dir"
+            kustomize build "$dir" | kubeconform "${FLAGS[@]}" -
+            echo "::endgroup::"
+          done <<< "$KUSTOMIZE_DIRS"
+        else
+          # shellcheck disable=SC2086
+          kubeconform "${FLAGS[@]}" $PATHS
+        fi

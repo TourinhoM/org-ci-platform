@@ -1,0 +1,44 @@
+# Single responsibility: Trivy config scan em manifests Kubernetes.
+# Aplica CIS Kubernetes Benchmark + NSA Kubernetes Hardening Guide direto
+# nos YAMLs (sem precisar de cluster live). Complementa kube-linter com
+# regras de compliance/security baseline.
+#
+# Espelha a estrutura de trivy-config (Dockerfile lint) e trivy-fs (filesystem):
+#   - 1a chamada: console + gate via Rego (HIGH/CRITICAL = fail)
+#   - 2a chamada: SARIF (todas severidades) -> Security tab se publico
+name: Trivy K8s Misconfig
+description: Trivy config scan em manifests k8s (CIS + NSA) com gate Rego e SARIF
+
+inputs:
+  scan-ref:
+    description: 'Diretorio com manifests k8s a escanear.'
+    required: false
+    default: '.'
+
+runs:
+  using: composite
+  steps:
+    - name: Trivy k8s misconfig scan (console + gate)
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      with:
+        scan-type: 'config'
+        scan-ref: ${{ inputs.scan-ref }}
+        format: 'table'
+        ignore-policy: ${{ github.action_path }}/policy.rego
+        exit-code: '1'
+
+    - name: Trivy k8s misconfig scan (SARIF)
+      if: always()
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+      with:
+        scan-type: 'config'
+        scan-ref: ${{ inputs.scan-ref }}
+        format: 'sarif'
+        output: 'trivy-k8s-results.sarif'
+
+    - name: Upload Trivy K8s SARIF to Security tab
+      if: always() && github.event.repository.visibility == 'public'
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-k8s-results.sarif'
+        category: trivy-k8s
