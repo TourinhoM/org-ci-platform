@@ -38,6 +38,9 @@ runs:
         done <<< "$DIRS"
         echo "TRIVY_SCAN_REF=$out" >> "$GITHUB_ENV"
 
+    # trivyignores aponta pro .trivyignore na raiz do repo do consumer.
+    # Trivy ignora silenciosamente se o arquivo nao existir — ok pra repos
+    # que nao tem exceptions documentadas.
     - name: Trivy k8s misconfig scan (console + gate)
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
@@ -45,6 +48,7 @@ runs:
         scan-ref: ${{ env.TRIVY_SCAN_REF }}
         format: 'table'
         ignore-policy: ${{ github.action_path }}/policy.rego
+        trivyignores: ${{ github.workspace }}/.trivyignore
         exit-code: '1'
 
     - name: Trivy k8s misconfig scan (SARIF)
@@ -55,6 +59,7 @@ runs:
         scan-ref: ${{ env.TRIVY_SCAN_REF }}
         format: 'sarif'
         output: 'trivy-k8s-results.sarif'
+        trivyignores: ${{ github.workspace }}/.trivyignore
 
     - name: Upload Trivy K8s SARIF to Security tab
       if: always() && github.event.repository.visibility == 'public'
