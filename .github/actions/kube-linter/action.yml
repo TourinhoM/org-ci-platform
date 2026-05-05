@@ -35,6 +35,40 @@ runs:
         output-file: kube-linter-results.sarif
         version: v0.8.3
 
+    # Resumo legivel no GitHub Step Summary (link "View summary" no job).
+    # Agrupa por regra (mais comum primeiro) + tabela detalhada colapsavel.
+    # Roda em always() pra surfacar findings mesmo quando o gate falhou.
+    - name: Summarize findings
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+        [[ -s kube-linter-results.sarif ]] || exit 0
+
+        count=$(jq '.runs[0].results | length' kube-linter-results.sarif)
+
+        {
+          if [[ "$count" -eq 0 ]]; then
+            echo "## kube-linter: PASS (0 findings)"
+          else
+            echo "## kube-linter: $count findings"
+            echo ""
+            echo "| Rule | Count |"
+            echo "|------|-------|"
+            jq -r '.runs[0].results | group_by(.ruleId) | sort_by(-length) | .[] | "| `\(.[0].ruleId)` | \(length) |"' kube-linter-results.sarif
+            echo ""
+            echo "<details><summary>Detalhes (clique pra expandir)</summary>"
+            echo ""
+            echo "| Rule | Object | Mensagem |"
+            echo "|------|--------|----------|"
+            jq -r '.runs[0].results[] | "| `\(.ruleId)` | `\(.locations[0].logicalLocations[0].name // "?")` | \(.message.text | gsub("\n"; " ")) |"' kube-linter-results.sarif
+            echo ""
+            echo "</details>"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        [[ "$count" -eq 0 ]] || echo "::warning::kube-linter found $count findings (see Step Summary)"
+
     - name: Upload kube-linter SARIF to Security tab
       if: always() && github.event.repository.visibility == 'public'
       uses: github/codeql-action/upload-sarif@v3
