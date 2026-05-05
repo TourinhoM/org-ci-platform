@@ -4,7 +4,7 @@ description: Run unit tests and publish coverage artifact (lcov) for Sonar
 inputs:
   node-version:
     required: false
-    default: '20'
+    default: '24'
 
 runs:
   using: composite
