@@ -19,9 +19,9 @@ inputs:
     required: false
     default: ''
   version:
-    description: 'Versao do kube-linter.'
+    description: 'Versao do kube-linter (prefixo "v" obrigatorio: tags upstream sao v0.8.x).'
     required: false
-    default: '0.8.3'
+    default: 'v0.8.3'
 
 runs:
   using: composite
