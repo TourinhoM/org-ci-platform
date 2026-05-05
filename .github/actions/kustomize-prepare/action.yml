@@ -1,0 +1,65 @@
+# Single responsibility: prepara ambiente pra usar Kustomize na CI.
+#   - Instala o binario kustomize
+#   - Auto-detecta entry points (dirs com kustomization.yaml top-level)
+#
+# Bundling install + discover: ambos sao SEMPRE usados juntos pelos
+# consumers (kubeconform, trivy-k8s). Separar em 2 actions = boilerplate
+# sem ganho.
+#
+# Versao do kustomize hardcoded — Renovate (Fase 5) bumpa via regex manager.
+# bump-via: https://github.com/kubernetes-sigs/kustomize/releases
+name: Kustomize Prepare
+description: Install kustomize + auto-discovery de kustomization.yaml top-level
+
+outputs:
+  entry-points:
+    description: 'Dirs com kustomization.yaml top-level (um por linha).'
+    value: ${{ steps.discover.outputs.entry-points }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install kustomize
+      shell: bash
+      run: |
+        set -euo pipefail
+        VERSION=5.8.1
+        curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${VERSION}/kustomize_v${VERSION}_linux_amd64.tar.gz" \
+          | sudo tar -xz -C /usr/local/bin kustomize
+
+    - name: Discover top-level entry points
+      id: discover
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Lista candidatos: dirs com kustomization.yaml ordenados lex
+        # (parents vem antes de children naturalmente).
+        mapfile -t candidates < <(
+          find . \( -name kustomization.yaml -o -name kustomization.yml \) \
+            -printf '%h\n' | sort -u
+        )
+
+        # Filtra: aceita candidato so se NAO for descendant de algum ja
+        # aceito. Como esta ordenado lex, basta comparar com o ultimo
+        # aceito. Aninhadas costumam ser Components que falham build
+        # standalone — entao filtra-las eh seguro.
+        accepted=()
+        for dir in "${candidates[@]}"; do
+          last="${accepted[-1]:-}"
+          if [[ -z "$last" || "$dir" != "$last"/* ]]; then
+            accepted+=("$dir")
+          fi
+        done
+
+        if [[ ${#accepted[@]} -eq 0 ]]; then
+          echo "::error::Nenhum kustomization.yaml encontrado no repo."
+          exit 1
+        fi
+
+        # Multi-line output via heredoc no GITHUB_OUTPUT.
+        {
+          echo "entry-points<<EOF"
+          printf '%s\n' "${accepted[@]}"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"

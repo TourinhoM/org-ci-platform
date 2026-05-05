@@ -1,28 +1,48 @@
-# Single responsibility: Trivy config scan em manifests Kubernetes.
-# Aplica CIS Kubernetes Benchmark + NSA Kubernetes Hardening Guide direto
-# nos YAMLs (sem precisar de cluster live). Complementa kube-linter com
-# regras de compliance/security baseline.
+# Single responsibility: Trivy config scan em manifests Kubernetes
+# (CIS Kubernetes Benchmark + NSA Hardening Guide).
 #
-# Espelha a estrutura de trivy-config (Dockerfile lint) e trivy-fs (filesystem):
+# Action OPINIONADA: usa kustomize-prepare pra renderizar antes do scan.
+# Razao: patches strategic-merge sao fragmentos. Trivy escaneando-os
+# standalone gera falsos positivos massivos de campos sobrepostos pelo
+# merge (securityContext, readOnlyRootFilesystem, etc.).
+#
+# Zero-input: pega tudo via kustomize-prepare.
+# Estrutura espelha trivy-config/trivy-fs:
 #   - 1a chamada: console + gate via Rego (HIGH/CRITICAL = fail)
 #   - 2a chamada: SARIF (todas severidades) -> Security tab se publico
 name: Trivy K8s Misconfig
-description: Trivy config scan em manifests k8s (CIS + NSA) com gate Rego e SARIF
-
-inputs:
-  scan-ref:
-    description: 'Diretorio com manifests k8s a escanear.'
-    required: false
-    default: '.'
+description: Trivy config scan em rendered Kustomize (CIS + NSA) com gate Rego e SARIF
 
 runs:
   using: composite
   steps:
+    - id: prep
+      uses: TourinhoM/org-ci-platform/.github/actions/kustomize-prepare@main
+
+    # Renderiza todos os entry points em UM rendered.yaml.
+    # Concatenar simplifica: Trivy escaneia 1 path em vez de N.
+    # Localizacao do finding fica no campo "object" do SARIF.
+    # GITHUB_ENV propaga path pros steps Trivy seguintes.
+    - name: Render kustomize trees
+      shell: bash
+      env:
+        DIRS: ${{ steps.prep.outputs.entry-points }}
+      run: |
+        set -euo pipefail
+        out=$(mktemp -d -t trivy-k8s-render.XXXXXX)
+        while IFS= read -r dir; do
+          [[ -z "$dir" ]] && continue
+          echo "::group::kustomize build $dir"
+          kustomize build "$dir" >> "$out/rendered.yaml"
+          echo "::endgroup::"
+        done <<< "$DIRS"
+        echo "TRIVY_SCAN_REF=$out" >> "$GITHUB_ENV"
+
     - name: Trivy k8s misconfig scan (console + gate)
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         scan-type: 'config'
-        scan-ref: ${{ inputs.scan-ref }}
+        scan-ref: ${{ env.TRIVY_SCAN_REF }}
         format: 'table'
         ignore-policy: ${{ github.action_path }}/policy.rego
         exit-code: '1'
@@ -32,7 +52,7 @@ runs:
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
         scan-type: 'config'
-        scan-ref: ${{ inputs.scan-ref }}
+        scan-ref: ${{ env.TRIVY_SCAN_REF }}
         format: 'sarif'
         output: 'trivy-k8s-results.sarif'
 

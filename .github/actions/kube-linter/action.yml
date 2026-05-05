@@ -3,25 +3,18 @@
 # resources/limits ausentes, runAsRoot, capabilities perigosas, probes
 # faltando, hostNetwork, ServiceAccount default, etc.
 #
-# Wrapper thin sobre stackrox/kube-linter-action: passamos diretorio + config
-# opcional do consumer. SARIF upload condicional segue mesma logica de trivy-fs
-# (so sobe pra Security tab se repo for public, pra evitar erro em free tier).
+# Zero-input: kube-linter auto-detecta kustomization.yaml E auto-carrega
+# .kube-linter.yaml do repo se existir (sem precisar input config).
+#
+# SARIF upload condicional: free tier privado falha upload — so sobe pra
+# Security tab se repo publico (mesma logica defensiva de trivy-fs).
+#
+# Versoes hardcoded — Renovate (Fase 5) bumpa via regex manager.
+# bump-via:
+#   - https://github.com/stackrox/kube-linter-action/releases
+#   - https://github.com/stackrox/kube-linter/releases
 name: kube-linter
-description: kube-linter (StackRox) best-practices scan + SARIF upload condicional
-
-inputs:
-  directory:
-    description: 'Diretorio a varrer. Aceita kustomize, helm rendered, ou raw YAML.'
-    required: false
-    default: '.'
-  config:
-    description: 'Path para .kube-linter.yaml custom no repo do caller. Vazio = defaults.'
-    required: false
-    default: ''
-  version:
-    description: 'Versao do kube-linter (prefixo "v" obrigatorio: tags upstream sao v0.8.x).'
-    required: false
-    default: 'v0.8.3'
+description: kube-linter best-practices scan + SARIF upload condicional
 
 runs:
   using: composite
@@ -29,20 +22,18 @@ runs:
     - name: kube-linter scan (console + gate)
       uses: stackrox/kube-linter-action@87802a2f4e01abebb3ee3c67a3002fea71f6eae5 # v1.0.7
       with:
-        directory: ${{ inputs.directory }}
-        config: ${{ inputs.config }}
+        directory: '.'
         format: plain
-        version: ${{ inputs.version }}
+        version: v0.8.3
 
     - name: kube-linter scan (SARIF)
       if: always()
       uses: stackrox/kube-linter-action@87802a2f4e01abebb3ee3c67a3002fea71f6eae5 # v1.0.7
       with:
-        directory: ${{ inputs.directory }}
-        config: ${{ inputs.config }}
+        directory: '.'
         format: sarif
         output-file: kube-linter-results.sarif
-        version: ${{ inputs.version }}
+        version: v0.8.3
 
     - name: Upload kube-linter SARIF to Security tab
       if: always() && github.event.repository.visibility == 'public'
