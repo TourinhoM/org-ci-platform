@@ -1,0 +1,120 @@
+# Audita manifests k8s com Polaris (Fairwinds) — best-practices em
+# security/reliability/efficiency com per-resource exemption real via
+# annotation (`polaris.fairwinds.com/<check>-exempt: true`).
+#
+# Substitui o trivy-k8s no lint-k8s.yml. Razao: Trivy K8s nao expoe
+# Kind/Name no input da Rego ignore-policy, impossibilitando exception
+# scoped a resource (issue oficial #8471). Polaris tem annotation-based
+# em 3 niveis (namespace/controller/container).
+#
+# Output: JSON parseado em Step Summary. SARIF nao e nativo do Polaris;
+# JSON-as-artifact + Step Summary cobre o caso de uso sem peca movel
+# custom de manutencao.
+#
+# Versoes hardcoded; Renovate bumpa via regex manager.
+# bump-via: https://github.com/FairwindsOps/polaris/releases
+name: Polaris
+description: Polaris audit em rendered Kustomize com gate em danger e Step Summary
+
+runs:
+  using: composite
+  steps:
+    - id: prep
+      uses: TourinhoM/org-ci-platform/.github/actions/kustomize-prepare@main
+
+    - name: Install polaris
+      uses: FairwindsOps/polaris/.github/actions/setup-polaris@1fdfec73a1a6611078cad745340ad2f0ae0f7db7 # v10.2.0
+      with:
+        version: 10.2.0
+
+    - name: Render kustomize trees
+      shell: bash
+      env:
+        DIRS: ${{ steps.prep.outputs.entry-points }}
+      run: |
+        set -euo pipefail
+        out=$(mktemp -d -t polaris-render.XXXXXX)
+        while IFS= read -r dir; do
+          [[ -z "$dir" ]] && continue
+          echo "::group::kustomize build $dir"
+          kustomize build "$dir" >> "$out/rendered.yaml"
+          echo "::endgroup::"
+        done <<< "$DIRS"
+        echo "POLARIS_RENDERED=$out/rendered.yaml" >> "$GITHUB_ENV"
+
+    # Auto-detecta polaris.yaml no repo consumer (mesma convencao de
+    # .kube-linter.yaml). Sem input, plug-and-play.
+    - name: Polaris audit (gate on danger)
+      shell: bash
+      run: |
+        set -euo pipefail
+        config_arg=()
+        [[ -f "$GITHUB_WORKSPACE/polaris.yaml" ]] && config_arg=(--config "$GITHUB_WORKSPACE/polaris.yaml")
+
+        polaris audit \
+          --audit-path "$POLARIS_RENDERED" \
+          --format json \
+          --set-exit-code-on-danger \
+          "${config_arg[@]}" \
+          > polaris-results.json
+
+    # Resumo no GitHub Step Summary: total + breakdown por severidade +
+    # top checks que falharam + tabela colapsavel com (resource, check,
+    # severidade, mensagem). Roda em always() pra surfacar findings
+    # mesmo quando o gate falhou.
+    - name: Summarize findings
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+        [[ -s polaris-results.json ]] || exit 0
+
+        total=$(jq '[.. | objects | select(.Success == false and .Severity != null)] | length' polaris-results.json)
+
+        {
+          if [[ "$total" -eq 0 ]]; then
+            echo "## Polaris: PASS (0 findings)"
+            exit 0
+          fi
+
+          danger=$(jq '[.. | objects | select(.Success == false and .Severity == "danger")] | length' polaris-results.json)
+          warning=$(jq '[.. | objects | select(.Success == false and .Severity == "warning")] | length' polaris-results.json)
+
+          echo "## Polaris: $total findings"
+          echo ""
+          echo "| Severidade | Count |"
+          echo "|------------|-------|"
+          echo "| danger (gate) | $danger |"
+          echo "| warning | $warning |"
+          echo ""
+          echo "### Top checks"
+          echo ""
+          echo "| Check | Severidade | Count |"
+          echo "|-------|------------|-------|"
+          jq -r '
+            [.. | objects | select(.Success == false and .Severity != null)]
+            | group_by(.ID)
+            | sort_by(-length)
+            | .[]
+            | "| `\(.[0].ID)` | \(.[0].Severity) | \(length) |"
+          ' polaris-results.json
+          echo ""
+          echo "<details><summary>Detalhes (clique pra expandir)</summary>"
+          echo ""
+          echo "| Check | Resource | Severidade | Mensagem |"
+          echo "|-------|----------|------------|----------|"
+          jq -r '
+            .Results[] as $r
+            | (
+                ($r.Results // {} | to_entries[] | {res: ($r.Kind + "/" + $r.Name), v: .value}),
+                ($r.PodResult.Results // {} | to_entries[] | {res: ($r.Kind + "/" + $r.Name), v: .value}),
+                ($r.PodResult.ContainerResults[]? as $c | $c.Results // {} | to_entries[] | {res: ($r.Kind + "/" + $r.Name + ":" + $c.Name), v: .value})
+              )
+            | select(.v.Success == false)
+            | "| `\(.v.ID)` | `\(.res)` | \(.v.Severity) | \(.v.Message | gsub("\n"; " ")) |"
+          ' polaris-results.json
+          echo ""
+          echo "</details>"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        [[ "$total" -eq 0 ]] || echo "::warning::Polaris found $total findings (see Step Summary)"

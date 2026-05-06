@@ -3,11 +3,11 @@ name: Lint K8s
 # Workflow callable: 3 jobs em paralelo, cada um wrapper sobre uma ferramenta:
 #   - kubeconform   -> schema (k8s API + CRDs catalog)
 #   - kube-linter   -> best-practices (resources, probes, securityContext)
-#   - trivy-k8s     -> CIS Kubernetes Benchmark + NSA hardening
+#   - polaris       -> security/reliability/efficiency com per-resource exemption
 #
 # Zero-input: defaults cobrem GitOps/Kustomize com manifests na raiz do repo.
 # Auto-discovery (via kustomize-prepare) encontra kustomization.yaml top-level.
-# kube-linter detecta .kube-linter.yaml automaticamente se existir no repo.
+# kube-linter detecta .kube-linter.yaml automaticamente; polaris detecta polaris.yaml.
 #
 # Falha em qualquer job = falha o run, mas todos rodam pra dar visibilidade
 # completa em um unico CI cycle.
@@ -38,12 +38,11 @@ jobs:
       - uses: actions/checkout@v5
       - uses: TourinhoM/org-ci-platform/.github/actions/kube-linter@main
 
-  trivy-k8s:
-    name: Security (trivy-k8s)
+  polaris:
+    name: Security/Reliability (polaris)
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
     steps:
       - uses: actions/checkout@v5
-      - uses: TourinhoM/org-ci-platform/.github/actions/trivy-k8s@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/polaris@main
