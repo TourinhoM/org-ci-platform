@@ -1,12 +1,7 @@
-# Single responsibility: prepara ambiente pra usar Kustomize na CI.
-#   - Instala o binario kustomize
-#   - Auto-detecta entry points (dirs com kustomization.yaml top-level)
+# Instala kustomize e descobre entry points top-level — dirs com
+# kustomization.yaml que nao sao consumidas por outra kustomization.
 #
-# Bundling install + discover: ambos sao SEMPRE usados juntos pelos
-# consumers (kubeconform, trivy-k8s). Separar em 2 actions = boilerplate
-# sem ganho.
-#
-# Versao do kustomize hardcoded — Renovate (Fase 5) bumpa via regex manager.
+# Versao hardcoded; Renovate bumpa via regex manager.
 # bump-via: https://github.com/kubernetes-sigs/kustomize/releases
 name: Kustomize Prepare
 description: Install kustomize + auto-discovery de kustomization.yaml top-level
@@ -33,34 +28,66 @@ runs:
       run: |
         set -euo pipefail
 
-        # Lista candidatos: dirs com kustomization.yaml ordenados lex
-        # (parents vem antes de children naturalmente).
+        # Lista dirs com kustomization.yaml, ordenados lex.
         mapfile -t candidates < <(
           find . \( -name kustomization.yaml -o -name kustomization.yml \) \
             -printf '%h\n' | sort -u
         )
 
-        # Filtra: aceita candidato so se NAO for descendant de algum ja
-        # aceito. Como esta ordenado lex, basta comparar com o ultimo
-        # aceito. Aninhadas costumam ser Components que falham build
-        # standalone — entao filtra-las eh seguro.
-        # Tracker explicito 'last' (em vez de ${accepted[-1]}) — bash
-        # falha "bad subscript" em array vazio mesmo com ':-' fallback.
-        accepted=()
-        last=""
-        for dir in "${candidates[@]}"; do
-          if [[ -z "$last" || "$dir" != "$last"/* ]]; then
-            accepted+=("$dir")
-            last="$dir"
-          fi
+
+        # Marca dirs consumidos como base/component por outra kustomization.
+        # Sem isso, base/ e overlays/lab/ viram ambos entry points — base
+        # renderiza standalone, gerando findings duplicados e falsos.
+        declare -A referenced=()
+
+        for cand in "${candidates[@]}"; do
+          kfile="$cand/kustomization.yaml"
+          [[ -f "$kfile" ]] || kfile="$cand/kustomization.yml"
+
+          # grep das entradas '- <path>' do kustomization; o filtro
+          # `[[ -d "$ref" ]]` descarta URLs, .yaml individuais e itens
+          # tipo '- key: value' de patches.
+          while IFS= read -r ref; do
+            [[ -z "$ref" ]] && continue
+            target=$(cd "$cand" && [[ -d "$ref" ]] && cd "$ref" && pwd) || continue
+            rel=$(realpath --relative-to="." "$target")
+            referenced["./$rel"]=1
+          done < <(
+            grep -E '^\s*-\s+\S' "$kfile" \
+              | sed -E 's/^\s*-\s*//; s/\s*#.*$//; s/\s*$//'
+          )
         done
+
+
+        # Aceita candidato se nao-nested E nao-referenciado. Rejeitados
+        # viram skip-prefix pra excluir descendentes tambem.
+        accepted=()
+        skip_prefixes=()
+
+        for dir in "${candidates[@]}"; do
+          skip=false
+          for sp in "${skip_prefixes[@]}"; do
+            [[ "$dir" == "$sp"/* ]] && { skip=true; break; }
+          done
+          $skip && continue
+
+          if [[ -n "${referenced[$dir]+x}" ]]; then
+            skip_prefixes+=("$dir")
+            continue
+          fi
+
+          accepted+=("$dir")
+          skip_prefixes+=("$dir")
+        done
+
 
         if [[ ${#accepted[@]} -eq 0 ]]; then
           echo "::error::Nenhum kustomization.yaml encontrado no repo."
           exit 1
         fi
 
-        # Multi-line output via heredoc no GITHUB_OUTPUT.
+
+        # Output multi-linha via heredoc.
         {
           echo "entry-points<<EOF"
           printf '%s\n' "${accepted[@]}"
