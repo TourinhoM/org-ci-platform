@@ -22,10 +22,15 @@ runs:
     - id: prep
       uses: TourinhoM/org-ci-platform/.github/actions/kustomize-prepare@main
 
+    # Polaris pinado em 9.6.0: o script da action oficial constroi URL como
+    # polaris_linux_amd64.tar.gz (sem versao) — padrao que Fairwinds quebrou
+    # ao mudar pra polaris_<v>_linux_amd64.tar.gz a partir do 10.x. Quando
+    # corrigirem o script upstream, Dependabot bumpa SHA e a gente atualiza
+    # o version input pra subir.
     - name: Install polaris
-      uses: FairwindsOps/polaris/.github/actions/setup-polaris@1fdfec73a1a6611078cad745340ad2f0ae0f7db7 # v10.2.0
+      uses: FairwindsOps/polaris/.github/actions/setup-polaris@4dd3a81bbd44f6541253209bb6fdb4b4060088c5 # 9.6.0
       with:
-        version: 10.2.0
+        version: 9.6.0
 
     - name: Render kustomize trees
       shell: bash
