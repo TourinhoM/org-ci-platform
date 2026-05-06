@@ -1,28 +1,46 @@
-# Single responsibility: best-practices check em manifests k8s usando
-# kube-linter (StackRox/Red Hat). Pega o que kubeconform NAO pega:
-# resources/limits ausentes, runAsRoot, capabilities perigosas, probes
-# faltando, hostNetwork, ServiceAccount default, etc.
+# Best-practices check em manifests k8s — pega o que kubeconform nao
+# pega: resources/limits ausentes, runAsRoot, capabilities perigosas,
+# probes faltando, hostNetwork, ServiceAccount default, etc.
 #
-# Zero-input: kube-linter auto-detecta kustomization.yaml E auto-carrega
-# .kube-linter.yaml do repo se existir (sem precisar input config).
+# Renderiza com kustomize-prepare antes de escanear: kube-linter scaneando
+# o repo cru constroi cada kustomization.yaml standalone (incluindo base/
+# sem newTag/patches), gerando findings duplicados e falsos.
 #
 # SARIF upload condicional: free tier privado falha upload — so sobe pra
-# Security tab se repo publico (mesma logica defensiva de trivy-fs).
+# Security tab se repo publico.
 #
-# Versoes hardcoded — Renovate (Fase 5) bumpa via regex manager.
+# Versoes hardcoded; Renovate bumpa via regex manager.
 # bump-via:
 #   - https://github.com/stackrox/kube-linter-action/releases
 #   - https://github.com/stackrox/kube-linter/releases
 name: kube-linter
-description: kube-linter best-practices scan + SARIF upload condicional
+description: kube-linter best-practices scan em rendered Kustomize + SARIF upload condicional
 
 runs:
   using: composite
   steps:
+    - id: prep
+      uses: TourinhoM/org-ci-platform/.github/actions/kustomize-prepare@main
+
+    - name: Render kustomize trees
+      shell: bash
+      env:
+        DIRS: ${{ steps.prep.outputs.entry-points }}
+      run: |
+        set -euo pipefail
+        out=$(mktemp -d -t kube-linter-render.XXXXXX)
+        while IFS= read -r dir; do
+          [[ -z "$dir" ]] && continue
+          echo "::group::kustomize build $dir"
+          kustomize build "$dir" >> "$out/rendered.yaml"
+          echo "::endgroup::"
+        done <<< "$DIRS"
+        echo "KUBE_LINTER_DIR=$out" >> "$GITHUB_ENV"
+
     - name: kube-linter scan (console + gate)
       uses: stackrox/kube-linter-action@87802a2f4e01abebb3ee3c67a3002fea71f6eae5 # v1.0.7
       with:
-        directory: '.'
+        directory: ${{ env.KUBE_LINTER_DIR }}
         format: plain
         version: v0.8.3
 
@@ -30,7 +48,7 @@ runs:
       if: always()
       uses: stackrox/kube-linter-action@87802a2f4e01abebb3ee3c67a3002fea71f6eae5 # v1.0.7
       with:
-        directory: '.'
+        directory: ${{ env.KUBE_LINTER_DIR }}
         format: sarif
         output-file: kube-linter-results.sarif
         version: v0.8.3
