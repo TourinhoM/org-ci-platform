@@ -32,6 +32,11 @@ runs:
       with:
         version: 9.6.0
 
+    # `echo "---"` antes de cada build: kustomize nao emite separador no
+    # inicio/fim do output, so entre docs do mesmo build. Sem isso,
+    # concatenar 2+ entry-points funde o ultimo doc do anterior com o
+    # primeiro do seguinte ("apiVersion already defined") — Polaris
+    # silencia o arquivo e gate passa em falso.
     - name: Render kustomize trees
       shell: bash
       env:
@@ -42,6 +47,7 @@ runs:
         while IFS= read -r dir; do
           [[ -z "$dir" ]] && continue
           echo "::group::kustomize build $dir"
+          echo "---" >> "$out/rendered.yaml"
           kustomize build "$dir" >> "$out/rendered.yaml"
           echo "::endgroup::"
         done <<< "$DIRS"

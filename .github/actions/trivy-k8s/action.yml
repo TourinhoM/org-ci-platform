@@ -24,6 +24,11 @@ runs:
     # Localizacao do finding fica no campo "object" do SARIF.
     # GITHUB_ENV propaga path pros steps Trivy seguintes.
     #
+    # `echo "---"` antes de cada build: kustomize nao emite separador no
+    # inicio/fim do output, so entre docs do mesmo build. Sem isso,
+    # concatenar 2+ entry-points funde o ultimo doc do anterior com o
+    # primeiro do seguinte, fazendo parsers descartarem o arquivo.
+    #
     # touch .trivyignore: trivy-action passa `--ignorefile <path>` cru pro
     # binario, que falha se o arquivo nao existir. Garantir um vazio mantem
     # a action plug-and-play (consumer so cria .trivyignore se tiver
@@ -38,6 +43,7 @@ runs:
         while IFS= read -r dir; do
           [[ -z "$dir" ]] && continue
           echo "::group::kustomize build $dir"
+          echo "---" >> "$out/rendered.yaml"
           kustomize build "$dir" >> "$out/rendered.yaml"
           echo "::endgroup::"
         done <<< "$DIRS"

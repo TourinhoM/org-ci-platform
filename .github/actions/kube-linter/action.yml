@@ -22,6 +22,10 @@ runs:
     - id: prep
       uses: TourinhoM/org-ci-platform/.github/actions/kustomize-prepare@main
 
+    # `echo "---"` antes de cada build: kustomize nao emite separador no
+    # inicio/fim do output, so entre docs do mesmo build. Sem isso,
+    # concatenar 2+ entry-points funde o ultimo doc do anterior com o
+    # primeiro do seguinte, fazendo parsers descartarem o arquivo.
     - name: Render kustomize trees
       shell: bash
       env:
@@ -32,6 +36,7 @@ runs:
         while IFS= read -r dir; do
           [[ -z "$dir" ]] && continue
           echo "::group::kustomize build $dir"
+          echo "---" >> "$out/rendered.yaml"
           kustomize build "$dir" >> "$out/rendered.yaml"
           echo "::endgroup::"
         done <<< "$DIRS"
