@@ -23,6 +23,11 @@ runs:
     # Concatenar simplifica: Trivy escaneia 1 path em vez de N.
     # Localizacao do finding fica no campo "object" do SARIF.
     # GITHUB_ENV propaga path pros steps Trivy seguintes.
+    #
+    # touch .trivyignore: trivy-action passa `--ignorefile <path>` cru pro
+    # binario, que falha se o arquivo nao existir. Garantir um vazio mantem
+    # a action plug-and-play (consumer so cria .trivyignore se tiver
+    # exception pra documentar — ver deploy-argocd).
     - name: Render kustomize trees
       shell: bash
       env:
@@ -37,10 +42,8 @@ runs:
           echo "::endgroup::"
         done <<< "$DIRS"
         echo "TRIVY_SCAN_REF=$out" >> "$GITHUB_ENV"
+        touch "$GITHUB_WORKSPACE/.trivyignore"
 
-    # trivyignores aponta pro .trivyignore na raiz do repo do consumer.
-    # Trivy ignora silenciosamente se o arquivo nao existir — ok pra repos
-    # que nao tem exceptions documentadas.
     - name: Trivy k8s misconfig scan (console + gate)
       uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
       with:
