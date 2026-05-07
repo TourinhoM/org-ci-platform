@@ -1,12 +1,13 @@
 name: Self CI
 
-# Validacao da plataforma sobre si mesma. 4 jobs em paralelo:
+# Validacao estatica da plataforma sobre si mesma. 3 jobs em paralelo:
 #   - actionlint:        sintaxe + expressoes + shellcheck inline em workflows/actions
 #   - yamllint:          indent/quoting/key-duplicates em .github/
 #   - sha-pinning-check: garante third-party actions pinadas por SHA — mesma
 #                        regra que a plataforma exige dos consumers
-#   - commit-lint:       reusa ./.github/workflows/commitlint.yml — a plataforma
-#                        valida seus proprios commits com o reusable que publica
+#
+# Validacao de commit message vive em self-commit-lint.yml — trigger
+# constrained a pull_request por per-event split.
 #
 # Trigger so quando .github/ ou self-ci.yml mudam — a plataforma e codigo de CI,
 # nao tem unit test pra rodar em todo push.
@@ -82,13 +83,3 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Check third-party uses are pinned by SHA
         run: bash .github/scripts/check-sha-pinning.sh .github
-
-  # So PR: validar commit message em push pra main e tarde demais (ja
-  # mergeado). PR e onde a verificacao e acionavel.
-  commit-lint:
-    name: Commit messages
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-      pull-requests: read
-    uses: ./.github/workflows/commitlint.yml

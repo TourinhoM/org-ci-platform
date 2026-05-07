@@ -1,0 +1,23 @@
+name: Self - Commit Messages
+
+# Validacao de mensagem de commit do proprio org-ci-platform.
+# Trigger limitado a pull_request — push em main e tarde demais
+# (commit ja foi mergeado).
+#
+# Workflow separado de self-ci.yml por per-event split: trigger
+# constrains o evento, evitando depender de `if:` runtime no job
+# (que tem comportamento inconsistente em jobs com `uses:` reusable).
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  commit-lint:
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/commitlint.yml
