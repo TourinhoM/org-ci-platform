@@ -1,0 +1,90 @@
+name: Self CI
+
+# Validacao da plataforma sobre si mesma. 4 jobs em paralelo:
+#   - actionlint:        sintaxe + expressoes + shellcheck inline em workflows/actions
+#   - yamllint:          indent/quoting/key-duplicates em .github/
+#   - sha-pinning-check: garante third-party actions pinadas por SHA (regra
+#                        que a propria plataforma prega — dogfood)
+#   - commit-lint:       reusa o reusable workflow proprio (dogfood)
+#
+# Trigger so quando .github/ ou self-ci.yml mudam — a plataforma e codigo de CI,
+# nao tem unit test pra rodar em todo push.
+on:
+  pull_request:
+    paths:
+      - '.github/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  actionlint:
+    name: actionlint (workflows + composite + shellcheck)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # reviewdog: anota PR com findings
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      # reviewdog/action-actionlint e a opcao indicada pelo proprio README do
+      # actionlint (rhysd nao mantem action oficial). Vem com shellcheck
+      # integrado pra blocos `run: bash`.
+      - uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1.72.0
+        with:
+          reporter: github-pr-check
+          fail_level: error
+
+  yamllint:
+    name: yamllint (.github/)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Install yamllint
+        run: pip install --user yamllint==1.35.1
+
+      # Config:
+      #   line-length warning so (140 chars).
+      #   document-start off — workflows nao usam ---.
+      #   comments-indentation off — comentarios entre steps alinham com -.
+      #   comments min-spaces-from-content: 1 — convencao GH Actions
+      #     `uses: x@<sha> # v1` usa 1 space antes do #.
+      #   truthy check-keys off — `on:` em workflows nao e booleano.
+      - name: Run yamllint
+        run: |
+          yamllint -d '{
+            extends: default,
+            rules: {
+              line-length: { max: 140, level: warning },
+              document-start: disable,
+              comments-indentation: disable,
+              comments: { min-spaces-from-content: 1 },
+              truthy: { check-keys: false }
+            }
+          }' .github/
+
+  sha-pinning-check:
+    name: SHA pinning (third-party actions)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - name: Check third-party uses are pinned by SHA
+        run: bash .github/scripts/check-sha-pinning.sh .github
+
+  commit-lint:
+    name: Commit messages (dogfood)
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/commitlint.yml
