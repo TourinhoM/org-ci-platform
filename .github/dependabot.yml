@@ -1,7 +1,7 @@
 version: 2
 
 updates:
-  # Atualiza referencias `uses:` em workflows e composite actions.
+  # Atualiza referencias `uses:` em workflows e composite actions. Ex: actions/checkout@v4
   - package-ecosystem: github-actions
     directory: /
     schedule:
