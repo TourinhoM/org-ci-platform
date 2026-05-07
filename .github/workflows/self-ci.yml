@@ -83,8 +83,11 @@ jobs:
       - name: Check third-party uses are pinned by SHA
         run: bash .github/scripts/check-sha-pinning.sh .github
 
+  # So PR: validar commit message em push pra main e tarde demais (ja
+  # mergeado). PR e onde a verificacao e acionavel.
   commit-lint:
     name: Commit messages
+    if: github.event_name == 'pull_request'
     permissions:
       contents: read
       pull-requests: read
