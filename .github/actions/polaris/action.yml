@@ -78,9 +78,10 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        [[ -s polaris-results.json ]] || exit 0
+        JSON=polaris-results.json
+        [[ -s "$JSON" ]] || exit 0
 
-        total=$(jq '[.. | objects | select(.Success == false and .Severity != null)] | length' polaris-results.json)
+        total=$(jq '[.. | objects | select(.Success == false and .Severity != null)] | length' "$JSON")
 
         {
           if [[ "$total" -eq 0 ]]; then
@@ -88,8 +89,8 @@ runs:
             exit 0
           fi
 
-          danger=$(jq '[.. | objects | select(.Success == false and .Severity == "danger")] | length' polaris-results.json)
-          warning=$(jq '[.. | objects | select(.Success == false and .Severity == "warning")] | length' polaris-results.json)
+          danger=$(jq '[.. | objects | select(.Success == false and .Severity == "danger")] | length' "$JSON")
+          warning=$(jq '[.. | objects | select(.Success == false and .Severity == "warning")] | length' "$JSON")
 
           echo "## Polaris: $total findings"
           echo ""
@@ -108,22 +109,26 @@ runs:
             | sort_by(-length)
             | .[]
             | "| `\(.[0].ID)` | \(.[0].Severity) | \(length) |"
-          ' polaris-results.json
+          ' "$JSON"
           echo ""
           echo "<details><summary>Detalhes (clique pra expandir)</summary>"
           echo ""
           echo "| Check | Resource | Severidade | Mensagem |"
           echo "|-------|----------|------------|----------|"
           jq -r '
+            def emit($key): to_entries[] | {res: $key, v: .value};
+
             .Results[] as $r
             | (
-                ($r.Results // {} | to_entries[] | {res: ($r.Kind + "/" + $r.Name), v: .value}),
-                ($r.PodResult.Results // {} | to_entries[] | {res: ($r.Kind + "/" + $r.Name), v: .value}),
-                ($r.PodResult.ContainerResults[]? as $c | $c.Results // {} | to_entries[] | {res: ($r.Kind + "/" + $r.Name + ":" + $c.Name), v: .value})
+                ($r.Results // {}           | emit($r.Kind + "/" + $r.Name)),
+                ($r.PodResult.Results // {} | emit($r.Kind + "/" + $r.Name)),
+                ($r.PodResult.ContainerResults[]? as $c
+                  | $c.Results // {}
+                  | emit($r.Kind + "/" + $r.Name + ":" + $c.Name))
               )
             | select(.v.Success == false)
             | "| `\(.v.ID)` | `\(.res)` | \(.v.Severity) | \(.v.Message | gsub("\n"; " ")) |"
-          ' polaris-results.json
+          ' "$JSON"
           echo ""
           echo "</details>"
         } >> "$GITHUB_STEP_SUMMARY"

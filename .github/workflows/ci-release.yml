@@ -5,7 +5,7 @@ on:
     secrets:
       RELEASE_APP_PRIVATE_KEY:
         required: false
-        description: 'Private key (.pem) do GitHub App pra push de tag — sem ele, tag criada via GITHUB_TOKEN nao dispara workflows downstream (ci-tag.yml).'
+        description: 'Private key (.pem) do GitHub App pra push de tag.'
 
 # Release nao deve ser cancelado em meio ao processo (cria tag, release, changelog).
 concurrency:

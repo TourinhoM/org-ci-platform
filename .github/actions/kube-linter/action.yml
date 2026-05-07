@@ -66,9 +66,10 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        [[ -s kube-linter-results.sarif ]] || exit 0
+        SARIF=kube-linter-results.sarif
+        [[ -s "$SARIF" ]] || exit 0
 
-        count=$(jq '.runs[0].results | length' kube-linter-results.sarif)
+        count=$(jq '.runs[0].results | length' "$SARIF")
 
         {
           if [[ "$count" -eq 0 ]]; then
@@ -78,13 +79,22 @@ runs:
             echo ""
             echo "| Rule | Count |"
             echo "|------|-------|"
-            jq -r '.runs[0].results | group_by(.ruleId) | sort_by(-length) | .[] | "| `\(.[0].ruleId)` | \(length) |"' kube-linter-results.sarif
+            jq -r '
+              .runs[0].results
+              | group_by(.ruleId)
+              | sort_by(-length)
+              | .[]
+              | "| `\(.[0].ruleId)` | \(length) |"
+            ' "$SARIF"
             echo ""
             echo "<details><summary>Detalhes (clique pra expandir)</summary>"
             echo ""
             echo "| Rule | Object | Mensagem |"
             echo "|------|--------|----------|"
-            jq -r '.runs[0].results[] | "| `\(.ruleId)` | `\(.locations[0].logicalLocations[0].name // "?")` | \(.message.text | gsub("\n"; " ")) |"' kube-linter-results.sarif
+            jq -r '
+              .runs[0].results[]
+              | "| `\(.ruleId)` | `\(.locations[0].logicalLocations[0].name // "?")` | \(.message.text | gsub("\n"; " ")) |"
+            ' "$SARIF"
             echo ""
             echo "</details>"
           fi

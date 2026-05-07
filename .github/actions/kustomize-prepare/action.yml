@@ -19,8 +19,9 @@ runs:
       run: |
         set -euo pipefail
         VERSION=5.8.1
-        curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${VERSION}/kustomize_v${VERSION}_linux_amd64.tar.gz" \
-          | sudo tar -xz -C /usr/local/bin kustomize
+        BASE="https://github.com/kubernetes-sigs/kustomize/releases/download"
+        URL="${BASE}/kustomize%2Fv${VERSION}/kustomize_v${VERSION}_linux_amd64.tar.gz"
+        curl -sSL "$URL" | sudo tar -xz -C /usr/local/bin kustomize
 
     - name: Discover top-level entry points
       id: discover
