@@ -19,7 +19,7 @@ runs:
       # Sem version: pega o pnpm pinado em packageManager do package.json.
 
     - name: Setup Node
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: ${{ inputs.node-version }}
 
@@ -51,7 +51,7 @@ runs:
     # quebrar. Sonar simplesmente nao recebe coverage e reporta 0.
     - name: Upload coverage artifact
       if: ${{ hashFiles('coverage/lcov.info') != '' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: coverage
         path: coverage/lcov.info
