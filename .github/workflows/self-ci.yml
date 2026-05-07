@@ -3,9 +3,10 @@ name: Self CI
 # Validacao da plataforma sobre si mesma. 4 jobs em paralelo:
 #   - actionlint:        sintaxe + expressoes + shellcheck inline em workflows/actions
 #   - yamllint:          indent/quoting/key-duplicates em .github/
-#   - sha-pinning-check: garante third-party actions pinadas por SHA (regra
-#                        que a propria plataforma prega — dogfood)
-#   - commit-lint:       reusa o reusable workflow proprio (dogfood)
+#   - sha-pinning-check: garante third-party actions pinadas por SHA — mesma
+#                        regra que a plataforma exige dos consumers
+#   - commit-lint:       reusa ./.github/workflows/commitlint.yml — a plataforma
+#                        valida seus proprios commits com o reusable que publica
 #
 # Trigger so quando .github/ ou self-ci.yml mudam — a plataforma e codigo de CI,
 # nao tem unit test pra rodar em todo push.
@@ -83,7 +84,7 @@ jobs:
         run: bash .github/scripts/check-sha-pinning.sh .github
 
   commit-lint:
-    name: Commit messages (dogfood)
+    name: Commit messages
     permissions:
       contents: read
       pull-requests: read
