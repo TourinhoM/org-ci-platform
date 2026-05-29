@@ -118,7 +118,26 @@ jobs:
           registry: ghcr.io
 
   # -----------------------------
-  # 7️⃣ Supply-chain attestations
+  # 7️⃣ Update kustomization.yaml
+  # -----------------------------
+  update-k8s:
+    name: Update K8s image tag
+    runs-on: ubuntu-latest
+    needs: [docker-push, prepare-image]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          persist-credentials: true
+          fetch-depth: 1
+      - uses: TourinhoM/org-ci-platform/.github/actions/update-kustomize-image@main
+        with:
+          image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
+
+  # -----------------------------
+  # 8️⃣ Supply-chain attestations
   # -----------------------------
   # Tres steps independentes: cosign sign, SBOM attest, SLSA provenance.
   # Cada um detecta visibilidade do repo e adapta --tlog-upload:

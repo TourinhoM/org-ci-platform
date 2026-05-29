@@ -1,0 +1,55 @@
+# Atualiza newTag na kustomization.yaml e commita de volta ao main com [skip ci].
+# GITHUB_TOKEN com contents:write é suficiente — push via GITHUB_TOKEN não
+# re-dispara workflows no mesmo repo (safety mecanismo do GitHub).
+name: Update Kustomize Image Tag
+description: >
+  Faz checkout do main, atualiza o newTag do image-name na kustomization.yaml
+  via kustomize edit set image, e commita + pusha de volta. Usa [skip ci] como
+  belt-and-suspenders contra loops.
+
+inputs:
+  image-name:
+    description: Nome da imagem no bloco images: da kustomization (ex. app-image)
+    required: false
+    default: app-image
+  image-ref:
+    description: Referência completa com tag (ex. ghcr.io/org/app:1.0.0)
+    required: true
+  k8s-path:
+    description: Caminho relativo ao root do repo com a kustomization.yaml
+    required: false
+    default: k8s
+
+runs:
+  using: composite
+  steps:
+    - name: Install kustomize
+      shell: bash
+      run: |
+        set -euo pipefail
+        VERSION=5.8.1
+        BASE="https://github.com/kubernetes-sigs/kustomize/releases/download"
+        URL="${BASE}/kustomize%2Fv${VERSION}/kustomize_v${VERSION}_linux_amd64.tar.gz"
+        curl -sSL "$URL" | sudo tar -xz -C /usr/local/bin kustomize
+        # bump-via: https://github.com/kubernetes-sigs/kustomize/releases
+
+    - name: Update image tag
+      shell: bash
+      run: |
+        cd "${{ inputs.k8s-path }}"
+        kustomize edit set image ${{ inputs.image-name }}=${{ inputs.image-ref }}
+        echo "kustomization.yaml após atualização:"
+        grep -A3 "images:" kustomization.yaml
+
+    - name: Commit and push
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add "${{ inputs.k8s-path }}/kustomization.yaml"
+        if git diff --cached --quiet; then
+          echo "Nenhuma alteração — tag já estava atualizada."
+          exit 0
+        fi
+        git commit -m "chore(k8s): update image tag to ${{ inputs.image-ref }} [skip ci]"
+        git push origin HEAD:main
