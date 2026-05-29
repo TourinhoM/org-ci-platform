@@ -65,13 +65,13 @@ jobs:
           config-path: ${{ inputs.dockerfile-path }}
 
   # -----------------------------
-  # 4️⃣ SonarQube (não roda para tag)
+  # 4️⃣ SonarQube (quando SONAR_ORG está configurado)
   # -----------------------------
   sonarqube:
     name: SonarQube
     runs-on: ubuntu-latest
     needs: [trivy-fs, secret-scan, trivy-config]
-    if: "!startsWith(github.ref, 'refs/tags/')"
+    if: "vars.SONAR_ORG != '' && !startsWith(github.ref, 'refs/tags/')"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
@@ -84,12 +84,37 @@ jobs:
           sonar-args: ""
 
   # -----------------------------
+  # 4️⃣ Semgrep SAST (fallback quando SONAR_ORG não está configurado)
+  # -----------------------------
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    needs: [trivy-fs, secret-scan, trivy-config]
+    if: "vars.SONAR_ORG == '' && !startsWith(github.ref, 'refs/tags/')"
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/semgrep@main
+
+  # -----------------------------
   # 5️⃣ Prepare Image
   # -----------------------------
   prepare-image:
     name: Prepare image
     runs-on: ubuntu-latest
-    needs: [trivy-fs, secret-scan, trivy-config, sonarqube]
+    needs: [trivy-fs, secret-scan, trivy-config, sonarqube, semgrep]
+    if: |
+      always() &&
+      needs.trivy-fs.result == 'success' &&
+      needs.secret-scan.result == 'success' &&
+      needs.trivy-config.result == 'success' &&
+      (needs.sonarqube.result == 'success' || needs.sonarqube.result == 'skipped') &&
+      (needs.semgrep.result == 'success' || needs.semgrep.result == 'skipped')
     outputs:
       image_repo: ${{ steps.prepare.outputs.repo }}
       image_tag: ${{ steps.prepare.outputs.tag }}

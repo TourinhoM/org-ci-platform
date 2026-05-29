@@ -1,0 +1,32 @@
+# Single responsibility: SAST via Semgrep — fallback quando SONAR_ORG não está configurado.
+# - 1ª chamada: console output + gate (exit 1 em qualquer finding)
+# - 2ª chamada: SARIF output (todas severidades) → upload pro Security tab
+#   Mesma separação gate/SARIF do trivy-fs: SARIF existe mesmo quando gate falha.
+name: Semgrep SAST
+description: >
+  SAST estático via Semgrep com detecção automática de linguagem (config auto).
+  Fallback para repos sem SonarCloud configurado. Gate falha em qualquer finding;
+  SARIF é gerado e uploadado independentemente do gate.
+
+runs:
+  using: composite
+  steps:
+    - name: Install Semgrep
+      shell: bash
+      run: pip install semgrep --quiet
+
+    - name: Semgrep SAST (console + gate)
+      shell: bash
+      run: semgrep scan --config auto --error .
+
+    - name: Semgrep SAST (SARIF)
+      if: always()
+      shell: bash
+      run: semgrep scan --config auto --sarif --output semgrep.sarif .
+
+    - name: Upload Semgrep SARIF to Security tab
+      if: always() && github.event.repository.visibility == 'public'
+      uses: github/codeql-action/upload-sarif@0daab03d71ff584ef619d027a3fd9146679c5d84 # v3
+      with:
+        sarif_file: semgrep.sarif
+        category: semgrep

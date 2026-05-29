@@ -47,12 +47,13 @@ jobs:
       - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@main
 
   # -----------------------------
-  # 3️⃣ SonarQube
+  # 3️⃣ SonarQube (quando SONAR_ORG está configurado)
   # -----------------------------
   sonarqube:
     name: SonarQube
     runs-on: ubuntu-latest
     needs: trivy-fs
+    if: "vars.SONAR_ORG != ''"
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -67,12 +68,34 @@ jobs:
           sonar-args: ""
 
   # -----------------------------
+  # 3️⃣ Semgrep SAST (fallback quando SONAR_ORG não está configurado)
+  # -----------------------------
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    needs: trivy-fs
+    if: "vars.SONAR_ORG == ''"
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
+      - uses: TourinhoM/org-ci-platform/.github/actions/semgrep@main
+
+  # -----------------------------
   # 4️⃣ Semantic Commit Check
   # -----------------------------
   semantic-commit-check:
     name: Semantic Commit Check
     runs-on: ubuntu-latest
-    needs: sonarqube
+    needs: [sonarqube, semgrep]
+    if: |
+      always() &&
+      (needs.sonarqube.result == 'success' || needs.sonarqube.result == 'skipped') &&
+      (needs.semgrep.result == 'success' || needs.semgrep.result == 'skipped')
     permissions:
       contents: read
       pull-requests: read
