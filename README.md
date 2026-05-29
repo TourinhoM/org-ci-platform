@@ -25,6 +25,7 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
 | Push em main | `ci-release.yml` | Semantic Release (cria tag a partir de conventional commits) |
 | Tag `v*` | `ci-tag.yml` | Trivy FS · Trivy Config → Docker build → Trivy image → Docker push → cosign sign · SBOM · SLSA |
 | Repos GitOps (manifests k8s) | `lint-k8s.yml` | Schema (kubeconform) · Best-practices (kube-linter) · Misconfig (trivy-k8s) — todos sobre output do `kustomize build` |
+| Repos GitOps (commit hygiene) | `commitlint.yml` | Conventional Commits validation em PR (wagoid/commitlint). Apps que usam `ci-pr.yml` já rodam essa checagem internamente — `commitlint.yml` standalone existe pra repos GitOps que não consomem `ci-pr.yml` |
 
 > Optei por per-event no lugar de um workflow único decidindo por `if:` — fica mais explícito, evita árvore de condicionais misturando lógica de eventos diferentes, e cada arquivo de workflow tem responsabilidade única.
 
@@ -54,6 +55,9 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
     kustomize-prepare/       # Install kustomize + auto-discovery top-level
     kubeconform/             # Schema validation (k8s API + CRDs catalog datreeio)
     kube-linter/             # Best-practices (resources, probes, securityContext) + SARIF
+    polaris/                 # Security/reliability/efficiency com per-resource exemption + Step Summary
+
+    # Disponivel mas fora do lint-k8s.yml default — usar via caller custom.
     trivy-k8s/               # CIS + NSA misconfig em rendered Kustomize + Rego gate + SARIF
 
   workflows/
@@ -62,12 +66,14 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
     ci-release.yml
     ci-tag.yml
     lint-k8s.yml             # Lint k8s pra repos GitOps (zero-input, plug-and-play)
+    commitlint.yml           # Conventional Commits standalone (pra repos sem ci-pr.yml)
     deploy-railway.yml       # WIP — implementacao planejada
     _caller-ci-pr.yml.example
     _caller-ci-push.yml.example
     _caller-ci-release.yml.example
     _caller-ci-tag.yml.example
     _caller-lint-k8s.yml.example
+    _caller-commitlint.yml.example
 
 templates/                   # Configs opcionais pro projeto consumidor
   .commitlintrc.json
@@ -110,16 +116,82 @@ Permissões mínimas do App: **Contents: Read & Write**, **Issues: Write**, **Pu
 
 ---
 
+## Lint K8s pra repos GitOps
+
+Pipeline separado dos workflows de app CI — destinado a repos que carregam **manifests Kubernetes** (Argo CD, Helm rendered, Kustomize). Roda 3 scanners em paralelo, todos sobre o **output do `kustomize build`** (não sobre arquivos crus — patches strategic-merge fragmentam a verdade).
+
+### Uso (plug-and-play, zero inputs)
+
+Copia `_caller-lint-k8s.yml.example` → `.github/workflows/lint.yml` no repo consumer:
+
+```yaml
+name: Lint
+on:
+  push:
+  schedule:
+    - cron: '0 8 * * 1'   # pega drift do CRDs catalog
+  workflow_dispatch:
+jobs:
+  lint:
+    permissions:
+      contents: read
+      security-events: write
+    uses: TourinhoM/org-ci-platform/.github/workflows/lint-k8s.yml@main
+```
+
+Sem `with:`. O workflow descobre tudo: encontra `kustomization.yaml` top-level, instala kustomize, renderiza, escaneia.
+
+### O que cada scanner cobre
+
+| Scanner | Action | Foco |
+|---------|--------|------|
+| **kubeconform** | `kubeconform` | Schema validation contra k8s API + CRDs catalog (datreeio) — pega campo errado, kind inválido |
+| **kube-linter** | `kube-linter` | Best-practices (resources/limits, probes, securityContext, capabilities) — auto-detecta `.kube-linter.yaml` se existir |
+| **polaris** | `polaris` | Security/reliability/efficiency (TLS, hostPort, image policies, PriorityClass, single replica, etc.) — gate em `danger`. Auto-detecta `polaris.yaml` se existir |
+
+### Pipeline interna
+
+```
+kustomize-prepare    →    [3 scanners em paralelo]
+(install + discover)      ├─ kubeconform (per-dir)
+                          ├─ kube-linter (concat rendered.yaml)
+                          └─ polaris (concat rendered.yaml)
+```
+
+`kustomize-prepare` é shared: instala o binário e auto-detecta entry points top-level. Os 3 scanners consomem os entry points renderizados.
+
+### Escape hatches no repo consumer
+
+| Arquivo | Quando criar |
+|---------|--------------|
+| `.kube-linter.yaml` | Customizar regras do kube-linter (auto-detectado) |
+| `polaris.yaml` | Customizar checks do Polaris (desativar, mudar severidade, scoping por namespace) — auto-detectado |
+
+Per-resource exemption sem precisar arquivo:
+
+- **kube-linter:** annotation `ignore-check.kube-linter.io/<rule>: "<reason>"` no metadata do workload
+- **polaris:** annotation `polaris.fairwinds.com/<check>-exempt: "true"` no metadata do workload (também aceita scope `polaris.fairwinds.com/exempt: true` pra exemptar todos os checks)
+
+### Onde os findings aparecem
+
+- **kube-linter** → SARIF na **Security tab** (se repo público) + resumo no **Step Summary**
+- **polaris** → resumo no **Step Summary** com breakdown por severidade + top checks + tabela colapsável de detalhes (Polaris não tem SARIF nativo)
+- **kubeconform** → output direto no log (schema findings tendem a ser raros e bloqueantes)
+
+---
+
 ## Security posture
 
-**Camadas de scan**, todas com gate em **HIGH/CRITICAL** e SARIF condicional ao Security tab (ativo quando repo público):
+**Camadas de scan**, com gate apropriado por camada:
 
-| Camada | Action | O que cobre |
-|--------|--------|-------------|
-| Filesystem | `trivy-fs` | Vulnerabilidades de libs + secrets no working tree |
-| Container image | `trivy-image` | CVE no artefato antes do push |
-| Dockerfile | `trivy-config` | Misconfig estática (USER root, HEALTHCHECK, etc.) |
-| Git history | `secret-scan` | Gitleaks — credenciais leaked no histórico |
+| Camada | Action | Gate | O que cobre |
+|--------|--------|------|-------------|
+| Filesystem | `trivy-fs` | HIGH/CRITICAL via Rego | Vulnerabilidades de libs + secrets no working tree |
+| Container image | `trivy-image` | HIGH/CRITICAL via Rego | CVE no artefato antes do push |
+| Dockerfile | `trivy-config` | HIGH/CRITICAL via Rego | Misconfig estática (USER root, HEALTHCHECK, etc.) |
+| K8s manifests (best-practices) | `kube-linter` | qualquer finding | Resources, probes, securityContext, capabilities, etc. |
+| K8s manifests (security/reliability) | `polaris` | severidade `danger` | TLS, hostPort, image pull policy, PriorityClass, single replica, etc. |
+| Git history | `secret-scan` | qualquer secret encontrado | Gitleaks — credenciais leaked no histórico |
 
 ### Gate via OPA Rego
 
