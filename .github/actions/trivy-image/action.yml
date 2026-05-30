@@ -17,15 +17,23 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Resolve policy file
+    - name: Resolve policy and ignore files
       shell: bash
       run: |
-        CUSTOM="${GITHUB_WORKSPACE}/trivy-policy.rego"
-        if [ -f "$CUSTOM" ]; then
-          echo "Using repo-level policy: $CUSTOM"
-          echo "TRIVY_POLICY=$CUSTOM" >> "$GITHUB_ENV"
+        CUSTOM_POLICY="${GITHUB_WORKSPACE}/trivy-policy.rego"
+        if [ -f "$CUSTOM_POLICY" ]; then
+          echo "Using repo-level policy: $CUSTOM_POLICY"
+          echo "TRIVY_POLICY=$CUSTOM_POLICY" >> "$GITHUB_ENV"
         else
           echo "TRIVY_POLICY=${{ github.action_path }}/policy.rego" >> "$GITHUB_ENV"
+        fi
+
+        IGNOREFILE="${GITHUB_WORKSPACE}/.trivyignore"
+        if [ -f "$IGNOREFILE" ]; then
+          echo "Using repo-level .trivyignore"
+          echo "TRIVY_IGNOREFILE=$IGNOREFILE" >> "$GITHUB_ENV"
+        else
+          echo "TRIVY_IGNOREFILE=" >> "$GITHUB_ENV"
         fi
 
     - name: Trivy image scan (console + gate)
@@ -34,6 +42,7 @@ runs:
         image-ref: ${{ inputs.image-ref }}
         format: 'table'
         ignore-policy: ${{ env.TRIVY_POLICY }}
+        trivyignores: ${{ env.TRIVY_IGNOREFILE }}
         exit-code: '1'
 
     - name: Trivy image scan (SARIF)
