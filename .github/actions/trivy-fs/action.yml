@@ -1,7 +1,10 @@
 # Single responsibility: Trivy filesystem scan with severity gate via Rego policy.
 # - 1st call: console output + gate (HIGH/CRITICAL fail via Rego ignore-policy)
-# - 2nd call: SARIF output (all severities, no filter) -> uploaded to Security tab
+# - 2nd call: SARIF output (all severidades) -> uploaded to Security tab
 #   if repo is public (or has GHAS).
+#
+# Auto-discovery de policy por repo: se existir trivy-policy.rego na raiz do repo
+# chamador ($GITHUB_WORKSPACE), ele é usado em vez da policy padrão da plataforma.
 name: Trivy FS Scan
 description: Trivy filesystem scan + Rego policy gate + SARIF upload (conditional)
 
@@ -14,6 +17,17 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Resolve policy file
+      shell: bash
+      run: |
+        CUSTOM="${GITHUB_WORKSPACE}/trivy-policy.rego"
+        if [ -f "$CUSTOM" ]; then
+          echo "Using repo-level policy: $CUSTOM"
+          echo "TRIVY_POLICY=$CUSTOM" >> "$GITHUB_ENV"
+        else
+          echo "TRIVY_POLICY=${{ github.action_path }}/policy.rego" >> "$GITHUB_ENV"
+        fi
+
     # Display + gate: log mostra todas severidades, exit-code so dispara em HIGH/CRITICAL
     # via policy.rego que filtra UNKNOWN/LOW/MEDIUM.
     - name: Trivy filesystem scan (console + gate)
@@ -25,7 +39,7 @@ runs:
         skip-dirs: .git
         ignore-unfixed: true
         scanners: vuln,secret
-        ignore-policy: ${{ github.action_path }}/policy.rego
+        ignore-policy: ${{ env.TRIVY_POLICY }}
         exit-code: '1'
 
     # SARIF: roda mesmo se gate acima falhou, pra alimentar a Security tab.
