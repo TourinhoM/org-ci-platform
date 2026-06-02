@@ -9,7 +9,7 @@ description: >
 
 inputs:
   image-name:
-    description: Nome da imagem no bloco images: da kustomization (ex. app-image)
+    description: "Nome da imagem no bloco images: da kustomization (ex. app-image)"
     required: false
     default: app-image
   image-ref:
