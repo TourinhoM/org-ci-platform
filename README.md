@@ -20,8 +20,8 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
 
 | Evento | Workflow callable | O que roda |
 |--------|-------------------|------------|
-| Pull Request → main | `ci-pr.yml` | Trivy FS · Secret Scan · Unit test → SonarQube → Semantic commit check |
-| Push em branch (≠ main) | `ci-push.yml` | Trivy FS · Secret Scan · Trivy Config · Unit test → SonarQube → Docker build → Trivy image → Docker push |
+| Pull Request → main | `ci-pr.yml` | Trivy FS · Secret Scan → Unit test + SAST (SonarQube ou Semgrep) → Semantic commit check |
+| Push em branch (≠ main) | `ci-push.yml` | Trivy FS · Secret Scan · Trivy Config → Unit test + SAST (SonarQube ou Semgrep) → Docker build → Trivy image → Docker push |
 | Push em main | `ci-release.yml` | Semantic Release (cria tag a partir de conventional commits) |
 | Tag `v*` | `ci-tag.yml` | Trivy FS · Trivy Config → Docker build → Trivy image → Docker push → cosign sign · SBOM · SLSA |
 | Repos GitOps (manifests k8s) | `lint-k8s.yml` | Schema (kubeconform) · Best-practices (kube-linter) · Misconfig (trivy-k8s) — todos sobre output do `kustomize build` |

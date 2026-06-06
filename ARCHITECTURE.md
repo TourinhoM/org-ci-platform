@@ -54,7 +54,7 @@ flowchart LR
     Tag[Tag v*] --> ci_tag[ci-tag.yml]
     K8sPush[Push em GitOps repo] --> lint_k8s[lint-k8s.yml]
 
-    ci_pr --> AppCI["Trivy FS · Secret Scan · Unit · Sonar · Commitlint"]
+    ci_pr --> AppCI["Trivy FS · Secret Scan · Unit · SAST · Commitlint"]
     ci_push --> AppPush["Trivy FS · Secret Scan · Build · Trivy Image · Push"]
     ci_release --> Sem["semantic-release: cria tag a partir de conventional commits"]
     ci_tag --> AppTag["Build · Trivy Image · Push · cosign · SBOM · SLSA"]

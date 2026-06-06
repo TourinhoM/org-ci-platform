@@ -65,32 +65,16 @@ jobs:
           config-path: ${{ inputs.dockerfile-path }}
 
   # -----------------------------
-  # 4️⃣ SonarQube (quando SONAR_ORG está configurado)
+  # 4️⃣ SAST (SonarQube quando SONAR_ORG está configurado; senão Semgrep)
   # -----------------------------
-  sonarqube:
-    name: SonarQube
+  # Job único com steps condicionais em vez de dois jobs mutuamente
+  # exclusivos: skip de JOB contamina a cadeia transitiva de needs e pula
+  # docker-build/trivy-image/docker-push mesmo com prepare-image verde.
+  # Skip de STEP não contamina nada — o grafo fica 100% incondicional.
+  sast:
+    name: SAST
     runs-on: ubuntu-latest
     needs: [trivy-fs, secret-scan, trivy-config]
-    if: "vars.SONAR_ORG != '' && !startsWith(github.ref, 'refs/tags/')"
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
-      - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          sonar-organization: ${{ vars.SONAR_ORG }}
-          coverage-exclusions: ${{ inputs.coverage-exclusions }}
-          sonar-args: ""
-
-  # -----------------------------
-  # 4️⃣ Semgrep SAST (fallback quando SONAR_ORG não está configurado)
-  # -----------------------------
-  semgrep:
-    name: Semgrep SAST
-    runs-on: ubuntu-latest
-    needs: [trivy-fs, secret-scan, trivy-config]
-    if: "vars.SONAR_ORG == '' && !startsWith(github.ref, 'refs/tags/')"
     permissions:
       contents: read
       security-events: write
@@ -99,7 +83,19 @@ jobs:
         with:
           fetch-depth: 0
       - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
-      - uses: TourinhoM/org-ci-platform/.github/actions/semgrep@main
+        if: "!startsWith(github.ref, 'refs/tags/')"
+      - name: SonarQube
+        if: vars.SONAR_ORG != '' && !startsWith(github.ref, 'refs/tags/')
+        uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          sonar-organization: ${{ vars.SONAR_ORG }}
+          coverage-exclusions: ${{ inputs.coverage-exclusions }}
+          sonar-args: ""
+      - name: Semgrep
+        if: vars.SONAR_ORG == '' && !startsWith(github.ref, 'refs/tags/')
+        uses: TourinhoM/org-ci-platform/.github/actions/semgrep@main
 
   # -----------------------------
   # 5️⃣ Prepare Image
@@ -107,14 +103,7 @@ jobs:
   prepare-image:
     name: Prepare image
     runs-on: ubuntu-latest
-    needs: [trivy-fs, secret-scan, trivy-config, sonarqube, semgrep]
-    if: |
-      always() &&
-      needs.trivy-fs.result == 'success' &&
-      needs.secret-scan.result == 'success' &&
-      needs.trivy-config.result == 'success' &&
-      (needs.sonarqube.result == 'success' || needs.sonarqube.result == 'skipped') &&
-      (needs.semgrep.result == 'success' || needs.semgrep.result == 'skipped')
+    needs: sast
     outputs:
       image_repo: ${{ steps.prepare.outputs.repo }}
       image_tag: ${{ steps.prepare.outputs.tag }}

@@ -47,34 +47,15 @@ jobs:
       - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@main
 
   # -----------------------------
-  # 3️⃣ SonarQube (quando SONAR_ORG está configurado)
+  # 3️⃣ SAST (SonarQube quando SONAR_ORG está configurado; senão Semgrep)
   # -----------------------------
-  sonarqube:
-    name: SonarQube
+  # Job único com steps condicionais em vez de dois jobs mutuamente
+  # exclusivos: skip de JOB contamina a cadeia transitiva de needs e
+  # pula os jobs downstream. Skip de STEP não contamina nada.
+  sast:
+    name: SAST
     runs-on: ubuntu-latest
     needs: trivy-fs
-    if: "vars.SONAR_ORG != ''"
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-      - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
-      - uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          sonar-organization: ${{ vars.SONAR_ORG }}
-          coverage-exclusions: ${{ inputs.coverage-exclusions }}
-          sonar-args: ""
-
-  # -----------------------------
-  # 3️⃣ Semgrep SAST (fallback quando SONAR_ORG não está configurado)
-  # -----------------------------
-  semgrep:
-    name: Semgrep SAST
-    runs-on: ubuntu-latest
-    needs: trivy-fs
-    if: "vars.SONAR_ORG == ''"
     permissions:
       contents: read
       security-events: write
@@ -83,7 +64,18 @@ jobs:
         with:
           fetch-depth: 0
       - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
-      - uses: TourinhoM/org-ci-platform/.github/actions/semgrep@main
+      - name: SonarQube
+        if: vars.SONAR_ORG != ''
+        uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          sonar-organization: ${{ vars.SONAR_ORG }}
+          coverage-exclusions: ${{ inputs.coverage-exclusions }}
+          sonar-args: ""
+      - name: Semgrep
+        if: vars.SONAR_ORG == ''
+        uses: TourinhoM/org-ci-platform/.github/actions/semgrep@main
 
   # -----------------------------
   # 4️⃣ Semantic Commit Check
@@ -91,11 +83,7 @@ jobs:
   semantic-commit-check:
     name: Semantic Commit Check
     runs-on: ubuntu-latest
-    needs: [sonarqube, semgrep]
-    if: |
-      always() &&
-      (needs.sonarqube.result == 'success' || needs.sonarqube.result == 'skipped') &&
-      (needs.semgrep.result == 'success' || needs.semgrep.result == 'skipped')
+    needs: sast
     permissions:
       contents: read
       pull-requests: read
