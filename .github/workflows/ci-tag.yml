@@ -7,6 +7,14 @@ on:
         required: false
         default: './Dockerfile'
         type: string
+    secrets:
+      RELEASE_APP_PRIVATE_KEY:
+        required: false
+        description: >
+          Private key (.pem) do GitHub App RELEASE_APP, usada na promoção
+          cross-repo da tag no gitops-<app> (job update-gitops). Secret
+          acessado sob `secrets: inherit` precisa ser DECLARADO aqui pra
+          popular — senão chega vazio (footgun do reusable workflow).
 
 # Tag pipeline produz artefato versionado — nao cancelar em meio ao push.
 concurrency:
