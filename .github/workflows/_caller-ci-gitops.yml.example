@@ -1,0 +1,19 @@
+# Exemplo de uso do reusable workflow ci-gitops em repo de deploy (gitops-<app>).
+# Copie para .github/workflows/ci.yml no repo consumer.
+#
+# Único check: smoke de `kustomize build` (o render resolve com o ref atual do
+# app-base + os valores deste repo). Sem kube-linter/polaris — best-practices
+# vivem e são lintadas no platform-app-base, não aqui.
+name: CI
+
+on:
+  # push cobre feature branches e o branch do PR; sem pull_request pra não
+  # duplicar o render no mesmo commit.
+  push:
+  workflow_dispatch:
+
+jobs:
+  ci:
+    permissions:
+      contents: read
+    uses: TourinhoM/org-ci-platform/.github/workflows/ci-gitops.yml@main

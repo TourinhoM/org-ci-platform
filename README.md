@@ -25,6 +25,7 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
 | Push em main | `ci-release.yml` | Semantic Release (cria tag a partir de conventional commits) |
 | Tag `v*` | `ci-tag.yml` | Trivy FS · Trivy Config → Docker build → Trivy image → Docker push → cosign sign · SBOM · SLSA |
 | Repos GitOps (manifests k8s) | `lint-k8s.yml` | Schema (kubeconform) · Best-practices (kube-linter) · Misconfig (trivy-k8s) — todos sobre output do `kustomize build` |
+| Repos de deploy (`gitops-<app>`) | `ci-gitops.yml` | Smoke de `kustomize build` — o render resolve com o ref do `platform-app-base` + os valores do repo. Best-practices ficam no `app-base` (lintado lá, uma vez), não em cada repo de deploy |
 | Repos GitOps (commit hygiene) | `commitlint.yml` | Conventional Commits validation em PR (wagoid/commitlint). Apps que usam `ci-pr.yml` já rodam essa checagem internamente — `commitlint.yml` standalone existe pra repos GitOps que não consomem `ci-pr.yml` |
 
 > Optei por per-event no lugar de um workflow único decidindo por `if:` — fica mais explícito, evita árvore de condicionais misturando lógica de eventos diferentes, e cada arquivo de workflow tem responsabilidade única.
@@ -66,6 +67,7 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
     ci-release.yml
     ci-tag.yml
     lint-k8s.yml             # Lint k8s pra repos GitOps (zero-input, plug-and-play)
+    ci-gitops.yml            # Smoke de kustomize build pra repos de deploy gitops-<app>
     commitlint.yml           # Conventional Commits standalone (pra repos sem ci-pr.yml)
     deploy-railway.yml       # WIP — implementacao planejada
     _caller-ci-pr.yml.example
@@ -73,6 +75,7 @@ No GitHub cada workflow tem seu próprio gatilho (`on:`). Esta plataforma adota 
     _caller-ci-release.yml.example
     _caller-ci-tag.yml.example
     _caller-lint-k8s.yml.example
+    _caller-ci-gitops.yml.example
     _caller-commitlint.yml.example
 
 templates/                   # Configs opcionais pro projeto consumidor

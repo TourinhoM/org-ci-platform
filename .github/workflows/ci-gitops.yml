@@ -1,0 +1,34 @@
+name: CI - GitOps (render smoke)
+
+# Repo de deploy (gitops-<app>) carrega só VALORES — a estrutura dos manifests
+# e o lint de best-practices moram no platform-app-base (lintado lá, uma vez,
+# via overlay de teste). Aqui o único check é um smoke: o `kustomize build`
+# resolve? Ref do app-base + valores + claim renderizam sem erro?
+#
+# Pega ref quebrado, valor malformado ou patch inválido antes do ArgoCD tentar
+# sincronizar. NÃO roda kube-linter/polaris de propósito: findings de estrutura
+# seriam idênticos em toda app e não-acionáveis aqui (o conserto é no app-base).
+# Mantém os PRs do time de infra livres de lint de best-practices quebrando.
+on:
+  workflow_call:
+
+jobs:
+  render:
+    name: Kustomize render smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - id: prep
+        uses: TourinhoM/org-ci-platform/.github/actions/kustomize-prepare@main
+      - name: Render
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r dir; do
+            [[ -z "$dir" ]] && continue
+            echo "::group::kustomize build $dir"
+            kustomize build "$dir"
+            echo "::endgroup::"
+          done <<< "${{ steps.prep.outputs.entry-points }}"
