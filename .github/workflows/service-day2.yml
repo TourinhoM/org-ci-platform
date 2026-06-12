@@ -1,0 +1,120 @@
+name: Service Day-2
+
+# Operações day-2 sobre o service.yaml via PR — disparado pelo Backstage
+# (github:actions:dispatch) ou manualmente. A cirurgia de arquivo mora aqui
+# (yq, mesma toolbox do renderer) e NÃO no scaffolder: o Backstage orquestra,
+# o CI edita — evita rebuild do Backstage com módulos de fs e mantém a
+# lógica de edição versionada na plataforma de CI.
+#
+# O PR nasce com token do RELEASE_APP (não GITHUB_TOKEN): PR criado por
+# GITHUB_TOKEN não dispara workflows (anti-loop do GitHub) — o ci-pr e a
+# validação de contrato precisam rodar no PR de day-2.
+on:
+  workflow_call:
+    inputs:
+      size:
+        description: 'Novo size (small|medium|large); vazio = não mexe'
+        required: false
+        default: ''
+        type: string
+      add-capability:
+        description: 'Capability a adicionar (database|cache); vazio = não mexe'
+        required: false
+        default: ''
+        type: string
+    secrets:
+      RELEASE_APP_PRIVATE_KEY:
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  edit:
+    name: Edit service.yaml → PR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read   # escrita via token do App, não GITHUB_TOKEN
+    steps:
+      - name: Valida inputs
+        shell: bash
+        env:
+          SIZE: ${{ inputs.size }}
+          CAP: ${{ inputs.add-capability }}
+        run: |
+          if [ -z "$SIZE" ] && [ -z "$CAP" ]; then
+            echo "::error::Nenhuma mudança solicitada (size e add-capability vazios)."
+            exit 1
+          fi
+
+      - name: Gera app token (escopado a este repo)
+        id: app-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: true
+
+      - name: Install yq
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=4.45.1
+          sudo curl -sSL -o /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/v${VERSION}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+          # bump-via: https://github.com/mikefarah/yq/releases
+
+      - name: Aplica edição no service.yaml
+        shell: bash
+        env:
+          SIZE: ${{ inputs.size }}
+          CAP: ${{ inputs.add-capability }}
+        run: |
+          set -euo pipefail
+          if [ ! -f service.yaml ]; then
+            echo "::error file=service.yaml::service.yaml não existe — repo pré-contrato; day-2 via Backstage exige migração primeiro."
+            exit 1
+          fi
+          if [ -n "$SIZE" ]; then
+            yq -i '.size = strenv(SIZE)' service.yaml
+          fi
+          if [ -n "$CAP" ]; then
+            yq -i '.capabilities = (((.capabilities // []) + [strenv(CAP)]) | unique)' service.yaml
+          fi
+          echo "service.yaml resultante:"
+          cat service.yaml
+
+      - name: Abre PR
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SIZE: ${{ inputs.size }}
+          CAP: ${{ inputs.add-capability }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "::notice::Edição não muda nada (valores já eram esses) — sem PR."
+            exit 0
+          fi
+          change=""
+          [ -n "$SIZE" ] && change="size=${SIZE}"
+          [ -n "$CAP" ] && change="${change:+$change }+capability=${CAP}"
+          branch="day2/${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add service.yaml
+          git commit -m "chore: day-2 edit (${change}) via Backstage"
+          git push origin "$branch"
+          gh pr create \
+            --title "day-2: ${change}" \
+            --body "Edição de service definition disparada via Backstage (run ${GITHUB_RUN_ID}). Merge aplica via render no gitops repo." \
+            --base main --head "$branch"

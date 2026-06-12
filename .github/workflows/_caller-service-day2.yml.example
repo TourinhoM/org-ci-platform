@@ -1,0 +1,35 @@
+name: Service Day-2
+
+# Alvo do github:actions:dispatch do Backstage (template service-day2).
+# Os inputs choice limitam os valores na própria UI do GitHub; a validação
+# de verdade é o schema do contrato, no PR que este workflow abre.
+on:
+  workflow_dispatch:
+    inputs:
+      size:
+        description: 'Novo size (vazio = não mexe)'
+        required: false
+        default: ''
+        type: choice
+        options: ['', small, medium, large]
+      add-capability:
+        description: 'Capability a adicionar (vazio = não mexe)'
+        required: false
+        default: ''
+        type: choice
+        options: ['', database, cache]
+
+jobs:
+  day2:
+    permissions:
+      contents: read
+
+    uses: TourinhoM/org-ci-platform/.github/workflows/service-day2.yml@main
+
+    with:
+      size: ${{ inputs.size }}
+      add-capability: ${{ inputs.add-capability }}
+
+    # Explícito (não `inherit`): reusable em outra org — inherit chega vazio.
+    secrets:
+      RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
