@@ -3,14 +3,30 @@
 # gitleaks vai mais a fundo em padroes de credenciais (AWS, Azure, GCP, Stripe,
 # JWT, GitHub PAT, etc.) e analisa historico completo.
 #
-# Para uso em ORGANIZATIONS, `GITLEAKS_LICENSE` e obrigatorio. Para repos
-# pessoais (publico ou privado), funciona sem license.
+# Bash install do binario (MIT, sem licenca) em vez da gitleaks-action: a
+# ACTION exige GITLEAKS_LICENSE para repos de organization — bomba armada na
+# migracao TourinhoM (pessoal) -> tourinho-labs (org), detonada no primeiro
+# PR da org (day-2 do workload experiment). O binario nao tem essa exigencia.
+# bump-via: https://github.com/gitleaks/gitleaks/releases
 name: Secret Scan
-description: Gitleaks scan no historico git
+description: Gitleaks scan no historico git (binario direto, sem license)
 
 runs:
   using: composite
   steps:
-    - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
+    - name: Install gitleaks
+      shell: bash
+      run: |
+        set -euo pipefail
+        VERSION=8.21.2
+        curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+          | sudo tar -xz -C /usr/local/bin gitleaks
+
+    # `git` (historico completo) e nao `dir`: paridade com o comportamento
+    # da action substituida. Checkout dos callers ja usa fetch-depth: 0.
+    - name: Gitleaks scan
+      shell: bash
+      run: |
+        set -euo pipefail
+        gitleaks git --no-banner --redact --verbose .
+        echo "gitleaks: nenhum secret no historico." >> "$GITHUB_STEP_SUMMARY"
