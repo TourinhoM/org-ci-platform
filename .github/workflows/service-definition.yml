@@ -1,0 +1,31 @@
+name: Service Definition
+
+# Reusable separado de ci-pr/ci-push de propósito: o contrato service.yaml é
+# conceito do modelo de deploy da plataforma (gitops), não do produto genérico
+# de CI — consumer sem gitops usa ci-* sem carregar esse acoplamento.
+# O caller restringe o trigger por paths (só roda quando service.yaml muda);
+# a action ainda no-opa se o arquivo não existir (rollout não-quebra).
+on:
+  workflow_call:
+    inputs:
+      file:
+        description: Caminho do service definition no repo consumer
+        required: false
+        default: service.yaml
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate contract
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: TourinhoM/org-ci-platform/.github/actions/service-definition-validate@main
+        with:
+          file: ${{ inputs.file }}

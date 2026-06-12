@@ -1,0 +1,23 @@
+name: Render GitOps
+
+# Dispara só quando a intenção muda — push de código não paga render
+# (a imagem chega no gitops repo pela promoção de tag do ci-tag, não por aqui).
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - service.yaml
+
+jobs:
+  render:
+    permissions:
+      contents: read
+
+    uses: TourinhoM/org-ci-platform/.github/workflows/render-gitops.yml@main
+
+    # Explícito (não `inherit`): o reusable está em outra org (TourinhoM) e
+    # `secrets: inherit` NÃO atravessa orgs — chega vazio. Necessário pra
+    # escrita cross-repo (RELEASE_APP) no gitops-<app>.
+    secrets:
+      RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}

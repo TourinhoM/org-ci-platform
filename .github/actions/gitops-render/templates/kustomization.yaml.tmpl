@@ -1,0 +1,73 @@
+{{- /* svc = service.yaml (intenção); NEW_TAG e PROVENANCE chegam via env.
+   Acesso via `index`: gomplate roda com missingkey=error, e campos opcionais
+   ausentes não podem derrubar o render. `default` do go-template engole
+   `false`, então http testa presença da chave em vez de usar default. */ -}}
+{{- $http := true }}{{ if has .svc "http" }}{{ $http = .svc.http }}{{ end -}}
+{{- $size := (index .svc "size") | default "small" -}}
+{{- $caps := coll.Sort ((index .svc "capabilities") | default (coll.Slice)) -}}
+{{- $env := (index .svc "env") | default (dict) -}}
+# GENERATED pelo gitops-render a partir de {{ getenv "PROVENANCE" }} — NÃO EDITE.
+# Mudanças manuais são sobrescritas no próximo render; a fonte da verdade
+# é o service.yaml do repo de aplicação.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Compõe o golden path a partir dos fragments do platform-app-base.
+# workload + metrics sempre; size patcha os resources do container (mesmo
+# profile dirige a quota na Claim AppNamespace); http conforme a intenção.
+components:
+  - https://github.com/TourinhoM/platform-app-base//components/workload?ref=main
+  - https://github.com/TourinhoM/platform-app-base//components/metrics?ref=main
+  - https://github.com/TourinhoM/platform-app-base//components/size-{{ $size }}?ref=main
+{{- if $http }}
+  - https://github.com/TourinhoM/platform-app-base//components/http?ref=main
+{{- end }}
+
+resources:
+  - claims/appnamespace.yaml
+{{- range $caps }}
+  - claims/app{{ . }}.yaml
+{{- end }}
+
+# Label em metadata e no pod template (não nos selectors imutáveis) para o
+# plugin Kubernetes do Backstage descobrir workloads e pods.
+labels:
+  - pairs:
+      backstage.io/kubernetes-id: {{ .svc.name }}
+    includeSelectors: false
+    includeTemplates: true
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+configMapGenerator:
+  - name: app-config
+    literals:
+      - name={{ .svc.name }}
+{{- if $http }}
+      - hostname={{ .svc.name }}.local
+{{- end }}
+{{- if $env }}
+  - name: app-env
+    literals:
+{{- range $key, $value := $env }}
+      - {{ $key }}={{ $value }}
+{{- end }}
+
+# envFrom via patch: app-base não conhece app-env (só existe quando a
+# intenção declara env), então o wire é responsabilidade do renderer.
+patches:
+  - target:
+      kind: Deployment
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom
+        value:
+          - configMapRef:
+              name: app-env
+{{- end }}
+
+images:
+  - name: app-image
+    newName: ghcr.io/tourinho-labs/{{ .svc.name }}
+    newTag: "{{ getenv "NEW_TAG" }}"

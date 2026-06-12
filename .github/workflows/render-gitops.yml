@@ -1,0 +1,82 @@
+name: Render GitOps
+
+# Caminho A do workload experiment: materializa a intenção (service.yaml do
+# app repo) no gitops-<app>. Job único com steps sequenciais — validação,
+# render e push compartilham o mesmo workspace e skip de step não contamina
+# o grafo (lição do par sonarqube/semgrep).
+#
+# Escrita cross-repo via RELEASE_APP (GitHub App), mesmo mecanismo da
+# promoção de tag no ci-tag: o dev não precisa de write no gitops repo
+# (separation of duties — deploy state é output de CI).
+# Push direto em main do gitops repo, sem PR: o repo é 100% escrito por
+# máquina e o review humano já aconteceu no PR do service.yaml no app repo.
+on:
+  workflow_call:
+    inputs:
+      file:
+        description: Caminho do service definition no repo consumer
+        required: false
+        default: service.yaml
+        type: string
+    # Declarado explicitamente: secret não-declarado em workflow_call.secrets
+    # chega VAZIO mesmo com inherit (mesma armadilha já corrigida no ci-tag).
+    secrets:
+      RELEASE_APP_PRIVATE_KEY:
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    name: Render service.yaml → gitops
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read   # a escrita é no OUTRO repo, via token do App (não GITHUB_TOKEN)
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Gate do contrato antes de qualquer escrita: intenção inválida não
+      # chega nem perto do gitops repo.
+      - uses: TourinhoM/org-ci-platform/.github/actions/service-definition-validate@main
+        with:
+          file: ${{ inputs.file }}
+
+      - name: Gera app token (escopado ao gitops-<app>)
+        id: app-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: gitops-${{ github.event.repository.name }}
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ github.repository_owner }}/gitops-${{ github.event.repository.name }}
+          token: ${{ steps.app-token.outputs.token }}
+          ref: main
+          path: gitops
+          persist-credentials: true
+          fetch-depth: 1
+
+      - uses: TourinhoM/org-ci-platform/.github/actions/gitops-render@main
+        with:
+          service-file: ${{ inputs.file }}
+          gitops-path: gitops
+          provenance: ${{ github.repository }}@${{ github.sha }}
+
+      - name: Commit and push
+        shell: bash
+        working-directory: gitops
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Render idêntico ao estado atual — nada a commitar."
+            exit 0
+          fi
+          git commit -m "chore(render): materializa service.yaml de ${{ github.repository }}@${GITHUB_SHA:0:7} [skip ci]"
+          git push origin main

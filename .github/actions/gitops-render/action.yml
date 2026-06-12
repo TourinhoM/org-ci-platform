@@ -1,0 +1,48 @@
+# Single responsibility: materializa a intenção (service.yaml) no gitops repo.
+# A FORMA dos arquivos mora em templates/ (gomplate — mesma linguagem do
+# function-go-templating do Crossplane, Caminho B do workload experiment);
+# render.sh só decide quais templates renderizar.
+# Pré-condições: service.yaml já validado (service-definition-validate) e o
+# gitops repo já checked-out no gitops-path (o commit/push é do workflow —
+# esta action não conhece credenciais).
+name: GitOps Render
+description: Renderiza service.yaml em kustomization + claims no gitops repo
+
+inputs:
+  service-file:
+    description: 'Caminho do service.yaml (no checkout do repo de app)'
+    required: false
+    default: service.yaml
+  gitops-path:
+    description: 'Diretório onde o gitops repo está checked-out'
+    required: true
+  provenance:
+    description: 'Origem do render (owner/repo@sha do app repo)'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Bash install: yq/gomplate não têm action oficial vasto-adotada; binários
+    # estáticos pinados seguem o padrão do kustomize no update-kustomize-image.
+    - name: Install yq and gomplate
+      shell: bash
+      run: |
+        set -euo pipefail
+        YQ_VERSION=4.45.1
+        GOMPLATE_VERSION=4.3.0
+        sudo curl -sSL -o /usr/local/bin/yq \
+          "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+        sudo curl -sSL -o /usr/local/bin/gomplate \
+          "https://github.com/hairyhenderson/gomplate/releases/download/v${GOMPLATE_VERSION}/gomplate_linux-amd64"
+        sudo chmod +x /usr/local/bin/yq /usr/local/bin/gomplate
+        # bump-via: https://github.com/mikefarah/yq/releases
+        # bump-via: https://github.com/hairyhenderson/gomplate/releases
+
+    - name: Render
+      shell: bash
+      run: |
+        bash "${{ github.action_path }}/render.sh" \
+          "${{ inputs.service-file }}" \
+          "${{ inputs.gitops-path }}" \
+          "${{ inputs.provenance }}"

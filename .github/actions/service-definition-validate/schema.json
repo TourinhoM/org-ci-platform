@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/TourinhoM/org-ci-platform/service-definition/v0",
+  "title": "Service Definition",
+  "description": "Contrato dev->plataforma: a única superfície que o dev edita pra dirigir o deploy. Campos derivam o resto (perguntar o mínimo). Evolução do schema = decisão de produto da plataforma; pedidos de campo novo entram como issue com label service-definition.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name"],
+  "properties": {
+    "type": {
+      "description": "Archetype do workload — eixo de extensão do contrato: app diferente ganha type novo com schema próprio, em vez de inflar este com campos opcionais. v0 só conhece web-service.",
+      "enum": ["web-service"],
+      "default": "web-service"
+    },
+    "name": {
+      "type": "string",
+      "description": "Nome do serviço (kebab-case). Vira nome de Deployment/Service/namespace — limite curto pra sobrar espaço pros sufixos que a plataforma adiciona.",
+      "pattern": "^[a-z](?:[a-z0-9-]{0,38}[a-z0-9])?$",
+      "maxLength": 40
+    },
+    "size": {
+      "description": "Perfil de recursos: dirige resources do container E quota do namespace a partir de um campo só.",
+      "enum": ["small", "medium", "large"],
+      "default": "small"
+    },
+    "http": {
+      "type": "boolean",
+      "description": "Expõe HTTP externo (Ingress + Certificate). false = serviço interno.",
+      "default": true
+    },
+    "env": {
+      "type": "object",
+      "description": "Variáveis de ambiente não-sensíveis (CHAVE_MAIUSCULA: \"valor\"). Segredos NÃO entram aqui — vêm das capabilities (Secret de conexão no namespace).",
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "Serviços de infra com lifecycle próprio — geram objetos separados (claim/XR), nunca campos inline do workload.",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["database", "cache"]
+      }
+    }
+  }
+}
