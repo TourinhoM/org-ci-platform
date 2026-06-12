@@ -43,6 +43,10 @@ runs:
         format: 'table'
         ignore-policy: ${{ env.TRIVY_POLICY }}
         trivyignores: ${{ env.TRIVY_IGNOREFILE }}
+        # Paridade com trivy-fs: CVE sem fix disponível não bloqueia (gate
+        # só no acionável — caso real: CVE-2026-48959 em perl do bookworm,
+        # status affected sem fix, travava todo build de imagem).
+        ignore-unfixed: true
         exit-code: '1'
 
     - name: Trivy image scan (SARIF)
