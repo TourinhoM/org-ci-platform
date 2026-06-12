@@ -19,6 +19,10 @@ inputs:
   provenance:
     description: 'Origem do render (owner/repo@sha do app repo)'
     required: true
+  engine:
+    description: 'Motor de materialização: kustomize (Caminho A) | xr (Caminho B)'
+    required: false
+    default: kustomize
 
 runs:
   using: composite
@@ -45,4 +49,5 @@ runs:
         bash "${{ github.action_path }}/render.sh" \
           "${{ inputs.service-file }}" \
           "${{ inputs.gitops-path }}" \
-          "${{ inputs.provenance }}"
+          "${{ inputs.provenance }}" \
+          "${{ inputs.engine }}"

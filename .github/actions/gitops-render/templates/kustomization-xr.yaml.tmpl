@@ -1,0 +1,21 @@
+# GENERATED pelo gitops-render a partir de {{ getenv "PROVENANCE" }} — NÃO EDITE.
+# Mudanças manuais são sobrescritas no próximo render; a fonte da verdade
+# é o service.yaml do repo de aplicação.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Wrapper fino: o conteúdo real é o App XR (app.yaml) — a composição dos
+# recursos acontece no cluster (Crossplane), não neste build.
+resources:
+  - app.yaml
+
+# Ensina o images transformer a enxergar App.spec.image — assim o
+# update-kustomize-image da promoção de tag (ci-tag) funciona idêntico
+# nos dois caminhos do experimento, sem mudança na plataforma de CI.
+configurations:
+  - kustomizeconfig.yaml
+
+images:
+  - name: app-image
+    newName: ghcr.io/tourinho-labs/{{ .svc.name }}
+    newTag: "{{ getenv "NEW_TAG" }}"

@@ -18,6 +18,11 @@ on:
         required: false
         default: service.yaml
         type: string
+      engine:
+        description: 'Motor de materialização: kustomize (Caminho A) | xr (Caminho B)'
+        required: false
+        default: kustomize
+        type: string
     # Declarado explicitamente: secret não-declarado em workflow_call.secrets
     # chega VAZIO mesmo com inherit (mesma armadilha já corrigida no ci-tag).
     secrets:
@@ -66,6 +71,7 @@ jobs:
           service-file: ${{ inputs.file }}
           gitops-path: gitops
           provenance: ${{ github.repository }}@${{ github.sha }}
+          engine: ${{ inputs.engine }}
 
       - name: Commit and push
         shell: bash

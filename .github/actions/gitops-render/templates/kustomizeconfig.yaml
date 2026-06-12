@@ -1,0 +1,7 @@
+# Fieldspec custom: aponta o images transformer pro campo de imagem do App XR
+# (CRs não estão nos paths default do transformer). Copiado as-is pro gitops
+# repo pelo render (engine xr).
+images:
+  - group: platform.lab
+    kind: App
+    path: spec/image
