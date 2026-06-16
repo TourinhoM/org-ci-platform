@@ -1,50 +1,49 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/TourinhoM/org-ci-platform/service-definition/v0",
-  "title": "Service Definition",
-  "description": "Contrato dev->plataforma: a única superfície que o dev edita pra dirigir o deploy. Campos derivam o resto (perguntar o mínimo). Evolução do schema = decisão de produto da plataforma; pedidos de campo novo entram como issue com label service-definition.",
+  "$id": "https://github.com/TourinhoM/org-ci-platform/platform-definition/v0",
+  "title": "Platform Definition",
+  "description": "Contrato dev->plataforma: platform.yaml na raiz do repo da app é a ÚNICA superfície que o dev edita pra dirigir o deploy. O gitops é sempre derivado dele pelos mesmos templates (scaffolder no day-1, renderer de CI no day-2). Semântica de overlay esparso: todo campo (menos name) é OPCIONAL e tem default; campo presente substitui o default, campo ausente cai no default — nunca zera o lado do gitops. Consequência: adicionar campo novo ao schema é sempre retrocompatível (platform.yaml antigo sem o campo continua válido e cai no default), então o contrato cresce sem risco. additionalProperties:false de propósito (contrato fechado): campo desconhecido é typo ou pedido prematuro e é recusado. Campo novo = issue no org-ci-platform com a label platform-definition.",
   "type": "object",
   "additionalProperties": false,
   "required": ["name"],
   "properties": {
     "type": {
-      "description": "Archetype do workload — eixo de extensão do contrato: app diferente ganha type novo com schema próprio, em vez de inflar este com campos opcionais. v0 só conhece web-service.",
+      "description": "Archetype do workload — eixo de extensão do contrato: app de natureza diferente ganha type novo com schema próprio, em vez de inflar este com campos opcionais. v0 só conhece web-service.",
       "enum": ["web-service"],
       "default": "web-service"
     },
     "name": {
       "type": "string",
-      "description": "Nome do serviço (kebab-case). Vira nome de Deployment/Service/namespace — limite curto pra sobrar espaço pros sufixos que a plataforma adiciona.",
+      "description": "Nome do serviço (kebab-case). Vira nome de Deployment/Service/namespace — curto pra sobrar espaço pros sufixos da plataforma.",
       "pattern": "^[a-z](?:[a-z0-9-]{0,38}[a-z0-9])?$",
       "maxLength": 40
     },
-    "size": {
-      "description": "Perfil de recursos: dirige resources do container E quota do namespace a partir de um campo só.",
-      "enum": ["small", "medium", "large"],
-      "default": "small"
+    "team": {
+      "type": "string",
+      "description": "Time dono do namespace (AppNamespace). Vazio = deriva do name. Aceita kebab-case ou vazio.",
+      "pattern": "^$|^[a-z](?:[a-z0-9-]{0,38}[a-z0-9])?$",
+      "default": ""
     },
     "http": {
       "type": "boolean",
-      "description": "Expõe HTTP externo (Ingress + Certificate). false = serviço interno.",
+      "description": "Expõe HTTP externo (Ingress + Certificate). false = serviço interno (sem entrada externa).",
       "default": true
     },
-    "env": {
-      "type": "object",
-      "description": "Variáveis de ambiente não-sensíveis (CHAVE_MAIUSCULA: \"valor\"). Segredos NÃO entram aqui — vêm das capabilities (Secret de conexão no namespace).",
-      "propertyNames": {
-        "pattern": "^[A-Z][A-Z0-9_]*$"
-      },
-      "additionalProperties": {
-        "type": "string"
-      }
+    "autoscaling": {
+      "type": "boolean",
+      "description": "Liga HPA + PodDisruptionBudget. false = uma réplica fixa.",
+      "default": false
     },
-    "capabilities": {
-      "type": "array",
-      "description": "Serviços de infra com lifecycle próprio — geram objetos separados (claim/XR), nunca campos inline do workload.",
-      "uniqueItems": true,
-      "items": {
-        "enum": ["database", "cache"]
-      }
+    "memory": {
+      "type": "string",
+      "description": "Limite de memória do container. CPU e TODOS os requests são piso fixo da plataforma (workload base); a cerca (min/max por container + quota do ns) vive no LimitRange/ResourceQuota da AppNamespace. Único resource que o dev mexe.",
+      "pattern": "^[0-9]+(Ki|Mi|Gi)$",
+      "default": "256Mi"
+    },
+    "database": {
+      "type": "boolean",
+      "description": "Conecta o serviço a um banco EXISTENTE do ambiente (binding envFrom + ExternalSecret db-conn materializado do Vault). NÃO provisiona banco. Promoção dev->hml->prod resolve o db-conn de cada ambiente.",
+      "default": false
     }
   }
 }

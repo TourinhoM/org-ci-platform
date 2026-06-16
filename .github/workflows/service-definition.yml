@@ -9,9 +9,9 @@ on:
   workflow_call:
     inputs:
       file:
-        description: Caminho do service definition no repo consumer
+        description: Caminho do platform definition no repo consumer
         required: false
-        default: service.yaml
+        default: platform.yaml
         type: string
 
 concurrency:

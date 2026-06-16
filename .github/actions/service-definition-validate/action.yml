@@ -1,4 +1,4 @@
-# Single responsibility: valida o service definition (service.yaml) contra o
+# Single responsibility: valida o platform definition (platform.yaml) contra o
 # JSON Schema do contrato da plataforma.
 # - Arquivo ausente -> no-op com ::notice:: (rollout não-quebra: consumer
 #   pré-contrato continua verde até migrar).
@@ -6,19 +6,19 @@
 #   + Step Summary com a referência de campos e o caminho pra pedir campo novo.
 # O schema mora junto da action (github.action_path): uma fonte de verdade,
 # versionada no mesmo commit que o enforcement que a aplica.
-name: Service Definition Validate
-description: Valida service.yaml contra o JSON Schema do contrato da plataforma
+name: Platform Definition Validate
+description: Valida platform.yaml contra o JSON Schema do contrato da plataforma
 
 inputs:
   file:
-    description: 'Caminho do service definition no repo consumer'
+    description: 'Caminho do platform definition no repo consumer'
     required: false
-    default: 'service.yaml'
+    default: 'platform.yaml'
 
 runs:
   using: composite
   steps:
-    - name: Detect service definition
+    - name: Detect platform definition
       shell: bash
       run: |
         if [ -f "${GITHUB_WORKSPACE}/${{ inputs.file }}" ]; then
@@ -35,7 +35,7 @@ runs:
       shell: bash
       run: |
         if ! python3 -c 'import json,sys,yaml; json.dump(yaml.safe_load(open(sys.argv[1])), open(sys.argv[2], "w"))' \
-            "${GITHUB_WORKSPACE}/${{ inputs.file }}" /tmp/service-definition.json 2>/tmp/yaml-err.txt; then
+            "${GITHUB_WORKSPACE}/${{ inputs.file }}" /tmp/platform-definition.json 2>/tmp/yaml-err.txt; then
           {
             echo "## ❌ ${{ inputs.file }}: YAML inválido"
             echo "O arquivo não é YAML válido — erro de sintaxe antes mesmo do contrato:"
@@ -56,7 +56,7 @@ runs:
         set +e
         out=$(npx --yes ajv-cli@5.0.0 validate \
           -s "${{ github.action_path }}/schema.json" \
-          -d /tmp/service-definition.json \
+          -d /tmp/platform-definition.json \
           --all-errors --errors=text 2>&1)
         code=$?
         set -e
@@ -64,23 +64,26 @@ runs:
           {
             echo "## ❌ ${{ inputs.file }} não passou no contrato da plataforma"
             echo '```'
-            echo "$out" | sed 's|/tmp/service-definition.json|${{ inputs.file }}|g'
+            echo "$out" | sed 's|/tmp/platform-definition.json|${{ inputs.file }}|g'
             echo '```'
             echo "### Campos aceitos"
-            echo "| Campo | Tipo | Valores |"
-            echo "|-------|------|---------|"
-            echo "| name (obrigatório) | string | kebab-case, até 40 chars |"
-            echo "| size | string | small · medium · large |"
-            echo "| http | boolean | true / false |"
-            echo "| env | mapa | CHAVE_MAIUSCULA: \"valor string\" |"
-            echo "| capabilities | lista | database · cache |"
+            echo "| Campo | Tipo | Valores | Default |"
+            echo "|-------|------|---------|---------|"
+            echo "| name (obrigatório) | string | kebab-case, até 40 chars | — |"
+            echo "| type | string | web-service | web-service |"
+            echo "| team | string | kebab-case ou vazio (deriva do name) | name |"
+            echo "| http | boolean | true / false | true |"
+            echo "| autoscaling | boolean | true / false | false |"
+            echo "| memory | string | quantidade k8s (ex.: 256Mi, 1Gi) | 256Mi |"
+            echo "| database | boolean | true / false | false |"
             echo
+            echo "Todo campo (menos name) é opcional: ausente cai no default, não zera o gitops."
             echo "Campo fora dessa lista é recusado de propósito (contrato fechado)."
             echo "Precisa de algo que o contrato não cobre? Abra uma issue no"
-            echo "org-ci-platform com a label \`service-definition\` descrevendo o caso."
+            echo "org-ci-platform com a label \`platform-definition\` descrevendo o caso."
           } >> "$GITHUB_STEP_SUMMARY"
           echo "$out"
-          echo "::error file=${{ inputs.file }}::service definition inválido — detalhes no Step Summary."
+          echo "::error file=${{ inputs.file }}::platform definition inválido — detalhes no Step Summary."
           exit 1
         fi
         echo "::notice::${{ inputs.file }} válido no contrato da plataforma."
