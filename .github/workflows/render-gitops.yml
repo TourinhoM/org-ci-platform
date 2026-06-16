@@ -80,13 +80,12 @@ jobs:
           fetch-depth: 1
 
       # Materializa a intenção com os MESMOS templates do scaffolder (nunjucks).
-      # environment=dev por ora; o A3 (overlays) torna isto por-ambiente.
+      # Rende base/ + overlays/{dev,hml,prod} — o env está baked no skeleton.
       - uses: TourinhoM/org-ci-platform/.github/actions/platform-render@main
         with:
           platform-file: ${{ inputs.file }}
           skeleton-dir: skeleton-src/templates/_skeletons
           gitops-dir: gitops
-          environment: dev
 
       - name: Commit and push
         shell: bash

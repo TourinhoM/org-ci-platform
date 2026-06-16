@@ -19,10 +19,6 @@ inputs:
   gitops-dir:
     description: 'Diretório onde o gitops-<app> está checked-out'
     required: true
-  environment:
-    description: 'Ambiente do overlay — resolve __ENV__ do ExternalSecret (A3 torna por-overlay)'
-    required: false
-    default: dev
 
 runs:
   using: composite
@@ -44,5 +40,4 @@ runs:
         node "${{ github.action_path }}/render.js" \
           "${{ inputs.platform-file }}" \
           "${{ inputs.skeleton-dir }}" \
-          "${{ inputs.gitops-dir }}" \
-          "${{ inputs.environment }}"
+          "${{ inputs.gitops-dir }}"
