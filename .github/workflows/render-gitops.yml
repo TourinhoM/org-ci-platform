@@ -21,6 +21,11 @@ on:
         required: false
         default: platform.yaml
         type: string
+      skeleton-ref:
+        description: Ref do platform-templates de onde sai o skeleton (anti-drift c/ o scaffolder)
+        required: false
+        default: main
+        type: string
     # Declarado explicitamente: secret não-declarado em workflow_call.secrets
     # chega VAZIO mesmo com inherit (mesma armadilha já corrigida no ci-tag).
     secrets:
@@ -64,15 +69,24 @@ jobs:
           persist-credentials: true
           fetch-depth: 1
 
-      # TODO(renderer): materializa platform.yaml -> gitops com os MESMOS
-      # templates do skeleton (platform-templates/_skeletons/gitops, nunjucks).
-      # Substitui o motor gomplate removido (action gitops-render). Ver A4 do
-      # BINDING_MIGRATION_PLAN. Falha de propósito até ser reescrito.
-      - name: Render platform.yaml → gitops (reescrita pendente)
-        shell: bash
-        run: |
-          echo "::error::renderer ainda não reescrito (A4) — ver BINDING_MIGRATION_PLAN."
-          exit 1
+      # Skeleton vem do platform-templates (TourinhoM, hardcoded como os refs de
+      # component do app-base no próprio skeleton) — fonte ÚNICA da forma, a mesma
+      # que o Backstage usa no day-1. Público: sem token.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: TourinhoM/platform-templates
+          ref: ${{ inputs.skeleton-ref }}
+          path: skeleton-src
+          fetch-depth: 1
+
+      # Materializa a intenção com os MESMOS templates do scaffolder (nunjucks).
+      # environment=dev por ora; o A3 (overlays) torna isto por-ambiente.
+      - uses: TourinhoM/org-ci-platform/.github/actions/platform-render@main
+        with:
+          platform-file: ${{ inputs.file }}
+          skeleton-dir: skeleton-src/templates/_skeletons
+          gitops-dir: gitops
+          environment: dev
 
       - name: Commit and push
         shell: bash

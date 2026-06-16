@@ -1,0 +1,3 @@
+# Deps instaladas em runtime pela action (npm install --no-save) e em testes
+# locais. Nunca commitar — a action resolve as deps no runner.
+node_modules/

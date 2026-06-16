@@ -1,0 +1,48 @@
+# Single responsibility: materializa platform.yaml no gitops repo usando os
+# MESMOS templates do scaffolder (platform-templates/_skeletons), renderizados
+# pelo MESMO engine (nunjucks com delimitadores do Backstage). Anti-drift por
+# construção — day-1 e day-2 não têm como divergir.
+# Pré-condições: platform.yaml já validado (service-definition-validate), e o
+# gitops repo + o skeleton já checked-out (o commit/push é do workflow — esta
+# action não conhece credenciais).
+name: Platform Render
+description: Renderiza platform.yaml em kustomization + claims + externalsecret no gitops repo
+
+inputs:
+  platform-file:
+    description: 'Caminho do platform.yaml (no checkout do repo de app)'
+    required: false
+    default: platform.yaml
+  skeleton-dir:
+    description: 'Dir com os _skeletons do platform-templates (contém gitops/ e capabilities/)'
+    required: true
+  gitops-dir:
+    description: 'Diretório onde o gitops-<app> está checked-out'
+    required: true
+  environment:
+    description: 'Ambiente do overlay — resolve __ENV__ do ExternalSecret (A3 torna por-overlay)'
+    required: false
+    default: dev
+
+runs:
+  using: composite
+  steps:
+    # Deps do renderer via npm com versão exata (equivalente do SHA pinning;
+    # não é GitHub Action, então Dependabot não bumpa — revisar junto do render.js).
+    - name: Install renderer deps (nunjucks + js-yaml)
+      shell: bash
+      run: |
+        set -euo pipefail
+        npm install --no-save --prefix "${{ github.action_path }}" \
+          nunjucks@3.2.4 js-yaml@4.1.0
+        # bump-via: https://www.npmjs.com/package/nunjucks
+        # bump-via: https://www.npmjs.com/package/js-yaml
+
+    - name: Render
+      shell: bash
+      run: |
+        node "${{ github.action_path }}/render.js" \
+          "${{ inputs.platform-file }}" \
+          "${{ inputs.skeleton-dir }}" \
+          "${{ inputs.gitops-dir }}" \
+          "${{ inputs.environment }}"
