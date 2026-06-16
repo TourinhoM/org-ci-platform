@@ -1,9 +1,9 @@
 name: Service Definition
 
-# Reusable separado de ci-pr/ci-push de propósito: o contrato service.yaml é
+# Reusable separado de ci-pr/ci-push de propósito: o contrato platform.yaml é
 # conceito do modelo de deploy da plataforma (gitops), não do produto genérico
 # de CI — consumer sem gitops usa ci-* sem carregar esse acoplamento.
-# O caller restringe o trigger por paths (só roda quando service.yaml muda);
+# O caller restringe o trigger por paths (só roda quando platform.yaml muda);
 # a action ainda no-opa se o arquivo não existir (rollout não-quebra).
 on:
   workflow_call:

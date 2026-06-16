@@ -7,7 +7,7 @@ on:
     branches:
       - main
     paths:
-      - service.yaml
+      - platform.yaml
 
 jobs:
   render:

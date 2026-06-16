@@ -3,14 +3,14 @@ name: Service Definition
 # Só dispara quando o contrato muda — PRs de código não pagam esse job.
 #
 # ⚠️ Se este check virar REQUIRED na branch protection, remova o filtro de
-# paths: required check que não dispara (PR sem mudança no service.yaml)
+# paths: required check que não dispara (PR sem mudança no platform.yaml)
 # trava o merge pra sempre. Sem filtro, a action no-opa verde em segundos.
 on:
   pull_request:
     branches:
       - main
     paths:
-      - service.yaml
+      - platform.yaml
 
 jobs:
   service-definition:
