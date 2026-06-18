@@ -1,16 +1,16 @@
 name: Helm Charts - Release (OCI)
 
 # Publica no GHCR OCI as versões NOVAS dos charts (idempotente por nome+versão).
-# Auth = token do RELEASE_APP (GitHub App) com packages:write. O GITHUB_TOKEN dá
-# 403 "installation does not exist" ao criar package na org (sem installation que
-# resolva o write); o App tem installation real na org → resolve. Mesmo App do
-# ci-tag (escrita privilegiada da plataforma). cancel-in-progress false: release.
+# Auth = token do RELEASE_APP (packages:write). O registry é DERIVADO do owner do
+# repo (ghcr.io/<owner-minúsculo>/charts) — publicar em owner diferente do
+# token/repo dá 403 "installation does not exist". cancel false: release.
 on:
   workflow_call:
     inputs:
       registry:
+        description: Base OCI. Vazio = ghcr.io/<owner-do-repo em minúsculo>/charts.
         required: false
-        default: oci://ghcr.io/tourinho-labs/charts
+        default: ''
         type: string
       charts-dir:
         required: false
@@ -33,17 +33,26 @@ jobs:
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
-      - name: Token do RELEASE_APP (org-scoped, packages:write)
+      - name: Token do RELEASE_APP (owner do repo, packages:write)
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-      - name: Login GHCR (OCI)
+      - name: Resolve registry + login GHCR
         shell: bash
-        run: echo "${{ steps.app-token.outputs.token }}" | helm registry login ghcr.io -u x-access-token --password-stdin
+        run: |
+          set -euo pipefail
+          REG='${{ inputs.registry }}'
+          if [ -z "$REG" ]; then
+            owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+            REG="oci://ghcr.io/${owner}/charts"
+          fi
+          echo "REGISTRY=$REG" >> "$GITHUB_ENV"
+          echo "registry resolvido: $REG"
+          echo "${{ steps.app-token.outputs.token }}" | helm registry login ghcr.io -u x-access-token --password-stdin
       - uses: TourinhoM/org-ci-platform/.github/actions/helm-publish-oci@main
         with:
-          registry: ${{ inputs.registry }}
+          registry: ${{ env.REGISTRY }}
           charts-dir: ${{ inputs.charts-dir }}
