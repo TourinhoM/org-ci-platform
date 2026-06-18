@@ -1,8 +1,9 @@
 name: Helm Charts - Release (OCI)
 
 # Publica no GHCR OCI as versões NOVAS dos charts (idempotente por nome+versão).
-# Auth via GITHUB_TOKEN (packages: write) — sem login manual. cancel-in-progress
-# false: release produz artefato versionado.
+# Auth via GHCR_TOKEN (PAT/App com write:packages) — o GITHUB_TOKEN NÃO serve:
+# dá 403 "installation does not exist" ao criar package org cujo nome não casa
+# com o repo. cancel-in-progress false: release produz artefato versionado.
 on:
   workflow_call:
     inputs:
@@ -14,6 +15,10 @@ on:
         required: false
         default: charts
         type: string
+    secrets:
+      GHCR_TOKEN:
+        description: PAT/App token com write:packages na org do registry. Declarado aqui pois cross-org não herda por inherit.
+        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -24,13 +29,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # publica em ghcr.io/<org> (mesma org do repo)
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - name: Login GHCR (OCI)
         shell: bash
-        run: helm registry login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
+        run: helm registry login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GHCR_TOKEN }}"
       - uses: TourinhoM/org-ci-platform/.github/actions/helm-publish-oci@main
         with:
           registry: ${{ inputs.registry }}
