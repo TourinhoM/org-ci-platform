@@ -15,7 +15,10 @@
  * não tem loop de env (os dirs SÃO o loop, desenrolado), simétrico com o day-1.
  *
  * Regras por arquivo (espelham os steps do scaffolder):
- *   - .github/workflows (verbatim — têm ${{ }} de GitHub Actions).
+ *   - .github/workflows: NÃO mora no skeleton de render. O CI do gitops é
+ *       provisionado no day-1 (bootstrap, via Backstage) porque o token do render
+ *       (RELEASE_APP) não tem permissão `workflows`. A branch verbatim abaixo fica
+ *       defensiva, mas no fluxo normal não há workflow pra renderizar aqui.
  *   - externalsecret.yaml dos overlays: verbatim + replace __APP__ (preserva o
  *       {{ }} do ESO; env já está baked). Day-2 subtrativo: database:false remove.
  *   - kustomization.yaml de overlay   -> nunjucks; o images.newTag é PRESERVADO do
