@@ -7,10 +7,12 @@
  * delimitadores do Backstage: ${{ }} variável, {% %} bloco). Day-1 (Backstage)
  * e day-2 (este CI) não podem divergir porque rendem do mesmo arquivo.
  *
- * Estrutura multi-ambiente (A3): o skeleton já traz base/ + overlays/{dev,hml,prod}
- * com o ENV baked em cada overlay (claim <app>-<env>, Vault databases/<env>/<app>).
- * O renderer só renderiza a árvore inteira — não tem loop de env (os 3 dirs SÃO
- * o loop, desenrolado), o que o mantém burro e simétrico com o day-1.
+ * Estrutura multi-ambiente: base/ + overlays/dev (ATIVO) + stages/{hml,prod}
+ * (INERTES), com o ENV baked em cada um (claim <app>-<env>, Vault
+ * databases/<env>/<app>). O ApplicationSet (git directories overlays/*) só sobe
+ * o dev; hml/prod ficam de prontidão em stages/ até o Kargo promover (copy
+ * stages/<env> -> overlays/<env>). O renderer só renderiza a árvore inteira —
+ * não tem loop de env (os dirs SÃO o loop, desenrolado), simétrico com o day-1.
  *
  * Regras por arquivo (espelham os steps do scaffolder):
  *   - .github/workflows (verbatim — têm ${{ }} de GitHub Actions).
@@ -34,27 +36,41 @@ const [, , PLATFORM_FILE, SKELETON_DIR, GITOPS_DIR] = process.argv;
 
 const fail = (msg) => { console.error(`::error::${msg}`); process.exit(1); };
 
-// --- 1. Lê a intenção e aplica os defaults (overlay esparso) -----------------
+// --- 1. Lê a intenção e aplica os defaults DO CONTRATO -----------------------
+// Os defaults NÃO moram mais aqui: vêm do schema.json (o contrato) — SoT único.
+// O schema é uma sibling action no mesmo repo (service-definition-validate),
+// sempre presente no checkout. Assim, adicionar/mudar um default é uma edição em
+// UM lugar e o renderer herda — acabou a triplicação (schema × render × scaffolder).
+// Sem ajv de propósito: leitura direta de properties[k].default (schema flat,
+// draft-07) — zero dependência nova no renderer.
+const SCHEMA_FILE = path.join(__dirname, '..', 'service-definition-validate', 'schema.json');
+let schemaProps = {};
+try {
+  schemaProps = JSON.parse(fs.readFileSync(SCHEMA_FILE, 'utf8')).properties || {};
+} catch (e) {
+  fail(`schema.json do contrato ilegível em ${SCHEMA_FILE}: ${e.message}`);
+}
+const schemaDefault = (key) => (schemaProps[key] ? schemaProps[key].default : undefined);
+
 let raw = {};
 if (fs.existsSync(PLATFORM_FILE)) {
   raw = yaml.load(fs.readFileSync(PLATFORM_FILE, 'utf8')) || {};
 } else {
   fail(`${PLATFORM_FILE} ausente — render abortado (o gate de contrato roda antes).`);
 }
-const pick = (key, def) => (raw[key] === undefined || raw[key] === null ? def : raw[key]);
 if (!raw.name) fail('platform.yaml sem `name` (campo obrigatório do contrato).');
+// Overlay esparso: campo presente substitui; ausente cai no default DO SCHEMA.
+const pick = (key) => (raw[key] === undefined || raw[key] === null ? schemaDefault(key) : raw[key]);
 
-// Mapeia os nomes do contrato p/ os nomes que o skeleton espera (values.*) — o
-// MESMO mapa que o fetch-gitops do scaffolder usa.
+// Mapeia os nomes do contrato p/ os nomes que o skeleton espera (values.*). É só
+// renomeação — os VALORES default vêm todos do schema lido acima.
 const values = {
   name: raw.name,
-  teamName: pick('team', '') || raw.name,
-  memLimit: pick('memory', '256Mi'),
-  exposeHttp: pick('http', true),
-  // defaults TÊM que bater 1:1 com schema.json (contrato) e com as constantes do
-  // day-1 (scaffolder fetch-gitops): tudo on (http+autoscaling), banco off.
-  autoscaling: pick('autoscaling', true),
-  connectDatabase: pick('database', false),
+  teamName: pick('team') || raw.name,   // default de team no schema é "" → vira name
+  memLimit: pick('memory'),
+  exposeHttp: pick('http'),
+  autoscaling: pick('autoscaling'),
+  connectDatabase: pick('database'),
 };
 
 // --- 2. Engine nunjucks com os delimitadores do Backstage scaffolder ---------
@@ -99,16 +115,18 @@ const walk = (dir) => {
     // .github/workflows/** verbatim (colisão ${{ }} Actions).
     if (rel.startsWith('.github/workflows/')) { mkWrite(dst, content); continue; }
 
-    // overlays/*/externalsecret.yaml: verbatim + __APP__; subtrativo se db off.
-    if (/^overlays\/[^/]+\/externalsecret\.yaml$/.test(rel)) {
+    // {overlays,stages}/*/externalsecret.yaml: verbatim + __APP__; subtrativo se
+    // db off. stages/ = overlays inertes de hml/prod (Kargo promove via copy);
+    // o subtrativo vale pros dois pra db on/off ficar consistente entre envs.
+    if (/^(overlays|stages)\/[^/]+\/externalsecret\.yaml$/.test(rel)) {
       if (values.connectDatabase) mkWrite(dst, content.split('__APP__').join(values.name));
       else if (fs.existsSync(dst)) fs.unlinkSync(dst);
       continue;
     }
 
-    // overlays/*/claims/appdatabase.yaml: claim de provisionamento (par do
-    // externalsecret). nunjucks (sem colisão {{ }}); subtrativo se db off.
-    if (/^overlays\/[^/]+\/claims\/appdatabase\.yaml$/.test(rel)) {
+    // {overlays,stages}/*/claims/appdatabase.yaml: claim de provisionamento (par
+    // do externalsecret). nunjucks (sem colisão {{ }}); subtrativo se db off.
+    if (/^(overlays|stages)\/[^/]+\/claims\/appdatabase\.yaml$/.test(rel)) {
       if (values.connectDatabase) mkWrite(dst, env.renderString(content, { values }));
       else if (fs.existsSync(dst)) fs.unlinkSync(dst);
       continue;
@@ -122,5 +140,5 @@ const walk = (dir) => {
 walk(SK_GITOPS);
 
 console.log(
-  `render ok: ${GITOPS_DIR} (overlays dev/hml/prod, database=${values.connectDatabase})`
+  `render ok: ${GITOPS_DIR} (overlays/dev ativo + stages/{hml,prod}, database=${values.connectDatabase})`
 );

@@ -80,7 +80,8 @@ jobs:
           fetch-depth: 1
 
       # Materializa a intenção com os MESMOS templates do scaffolder (nunjucks).
-      # Rende base/ + overlays/{dev,hml,prod} — o env está baked no skeleton.
+      # Rende base/ + overlays/dev (ativo) + stages/{hml,prod} (inertes, p/ o Kargo
+      # promover via copy) — o env está baked no skeleton.
       - uses: TourinhoM/org-ci-platform/.github/actions/platform-render@main
         with:
           platform-file: ${{ inputs.file }}
