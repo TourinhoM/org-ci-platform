@@ -1,21 +1,25 @@
 name: Helm Charts - Release (OCI)
 
 # Publica no GHCR OCI as versões NOVAS dos charts (idempotente por nome+versão).
-# Auth = GITHUB_TOKEN + packages:write — MESMA estratégia da imagem de container
-# (ci-tag). Registry de 1 segmento (ghcr.io/<org>/<chart>), como a imagem: o
-# GITHUB_TOKEN auto-cria/linka package de 1 segmento; path aninhado dá 403.
-# cancel-in-progress false: release produz artefato versionado.
+# Auth = token do RELEASE_APP (GitHub App) com packages:write. O GITHUB_TOKEN dá
+# 403 "installation does not exist" ao criar package na org (sem installation que
+# resolva o write); o App tem installation real na org → resolve. Mesmo App do
+# ci-tag (escrita privilegiada da plataforma). cancel-in-progress false: release.
 on:
   workflow_call:
     inputs:
       registry:
         required: false
-        default: oci://ghcr.io/tourinho-labs
+        default: oci://ghcr.io/tourinho-labs/charts
         type: string
       charts-dir:
         required: false
         default: charts
         type: string
+    secrets:
+      RELEASE_APP_PRIVATE_KEY:
+        description: Private key (.pem) do RELEASE_APP. Declarado aqui pois cross-org não herda por inherit.
+        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -26,13 +30,19 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # GITHUB_TOKEN publica em ghcr.io/<org> (mesma org do repo)
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
+      - name: Token do RELEASE_APP (org-scoped, packages:write)
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
       - name: Login GHCR (OCI)
         shell: bash
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+        run: echo "${{ steps.app-token.outputs.token }}" | helm registry login ghcr.io -u x-access-token --password-stdin
       - uses: TourinhoM/org-ci-platform/.github/actions/helm-publish-oci@main
         with:
           registry: ${{ inputs.registry }}
