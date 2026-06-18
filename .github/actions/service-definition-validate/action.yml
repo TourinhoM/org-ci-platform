@@ -73,6 +73,7 @@ runs:
             echo "| type | string | web-service | web-service |"
             echo "| team | string | kebab-case ou vazio (deriva do name) | name |"
             echo "| http | boolean | true / false | true |"
+          echo "| health.readiness / health.liveness | string | path HTTP iniciando em / (ex.: /q/health/ready) | /health |"
             echo "| autoscaling | boolean | true / false | true |"
             echo "| memory | string | quantidade k8s (ex.: 256Mi, 1Gi) | 256Mi |"
             echo "| database | boolean | true / false | false |"

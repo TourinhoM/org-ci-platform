@@ -62,6 +62,14 @@ if (!raw.name) fail('platform.yaml sem `name` (campo obrigatório do contrato).'
 // Overlay esparso: campo presente substitui; ausente cai no default DO SCHEMA.
 const pick = (key) => (raw[key] === undefined || raw[key] === null ? schemaDefault(key) : raw[key]);
 
+// health é o 1º campo ANINHADO do contrato. pick('health') devolve o objeto do
+// platform.yaml ou, se ausente, o default-objeto do schema (ambas as chaves).
+// Override esparso por sub-chave: se o dev declara só readiness, liveness ainda
+// cai no default aninhado do schema — por isso o fallback explícito por chave.
+const healthProps = (schemaProps.health && schemaProps.health.properties) || {};
+const healthDefault = (k) => (healthProps[k] ? healthProps[k].default : undefined);
+const health = pick('health') || {};
+
 // Mapeia os nomes do contrato p/ os nomes que o skeleton espera (values.*). É só
 // renomeação — os VALORES default vêm todos do schema lido acima.
 const values = {
@@ -71,6 +79,10 @@ const values = {
   exposeHttp: pick('http'),
   autoscaling: pick('autoscaling'),
   connectDatabase: pick('database'),
+  // Paths das probes → literais no app-config; o replacement do workload base
+  // (platform-app-base) injeta nos httpGet.path do Deployment remoto.
+  healthReadiness: health.readiness != null ? health.readiness : healthDefault('readiness'),
+  healthLiveness: health.liveness != null ? health.liveness : healthDefault('liveness'),
 };
 
 // --- 2. Engine nunjucks com os delimitadores do Backstage scaffolder ---------

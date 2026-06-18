@@ -29,6 +29,26 @@
       "description": "Expõe HTTP externo (Ingress + Certificate). false = serviço interno (sem entrada externa).",
       "default": true
     },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Paths das probes HTTP. Default /health nos dois — o golden path manda o path por convenção; declare SÓ se o framework fixa outro (ex.: Quarkus expõe /q/health/ready e /q/health/live). Porta e timings (initialDelay/period/threshold) são piso da plataforma, não negociáveis. Override esparso: dar só readiness mantém liveness no default.",
+      "default": { "readiness": "/health", "liveness": "/health" },
+      "properties": {
+        "readiness": {
+          "type": "string",
+          "description": "Path HTTP da readinessProbe (gate de tráfego). Default /health.",
+          "pattern": "^/",
+          "default": "/health"
+        },
+        "liveness": {
+          "type": "string",
+          "description": "Path HTTP da livenessProbe (restart se falhar). Default /health.",
+          "pattern": "^/",
+          "default": "/health"
+        }
+      }
+    },
     "autoscaling": {
       "type": "boolean",
       "description": "Liga HPA + PodDisruptionBudget (default true). false = uma réplica fixa, sem HPA/PDB. O golden path entrega resiliência por construção: o serviço nasce com autoscaling e o dev opta por SAIR, não por entrar.",
