@@ -1,0 +1,10 @@
+name: Release (charts → OCI)
+on:
+  push:
+    branches: [main]
+jobs:
+  release:
+    permissions:
+      contents: read
+      packages: write
+    uses: TourinhoM/org-ci-platform/.github/workflows/helm-charts-release.yml@main

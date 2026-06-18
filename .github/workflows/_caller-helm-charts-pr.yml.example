@@ -1,0 +1,9 @@
+name: CI - PR (charts)
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  lint:
+    permissions:
+      contents: read
+    uses: TourinhoM/org-ci-platform/.github/workflows/helm-charts-pr.yml@main

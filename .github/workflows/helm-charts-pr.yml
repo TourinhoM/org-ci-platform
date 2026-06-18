@@ -1,0 +1,32 @@
+name: Helm Charts - PR (lint + bump)
+
+# Gate de PR pra monorepo de charts: chart-testing (ct) linta SÓ os charts
+# mudados (git diff) e FALHA se um chart mudou sem bumpar a version (ct.yaml:
+# check-version-increment). É o que torna o versionamento manual seguro.
+on:
+  workflow_call:
+    inputs:
+      target-branch:
+        description: Branch base pro diff de charts mudados
+        required: false
+        default: main
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0   # ct precisa do histórico pra diff vs target-branch
+      - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
+      - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2.8.0
+      - name: ct lint (charts mudados + enforce bump)
+        shell: bash
+        run: ct lint --config ct.yaml --target-branch "${{ inputs.target-branch }}"

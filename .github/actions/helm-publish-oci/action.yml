@@ -1,0 +1,48 @@
+# Publica os charts de um monorepo (dir charts/) num registry OCI.
+# - Ordena LIBRARY primeiro (deps dos arquétipos resolvem via OCI).
+# - Idempotente: se name@version já está no registry, pula (a `version` do
+#   Chart.yaml é a fonte da verdade; só versão nova publica).
+# - Reescreve deps `file://../x` -> registry OCI antes de empacotar, senão o
+#   chart publicado não é consumível fora do monorepo.
+# Pré-condição: o workflow chamador já fez `helm registry login`.
+name: Helm Publish OCI
+description: Empacota e publica charts (library primeiro) num registry OCI, idempotente por nome+versão.
+inputs:
+  registry:
+    description: 'Base OCI (ex.: oci://ghcr.io/tourinho-labs/charts)'
+    required: true
+  charts-dir:
+    description: 'Diretório raiz dos charts'
+    required: false
+    default: charts
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        REG='${{ inputs.registry }}'
+        ROOT='${{ inputs.charts-dir }}'
+        mkdir -p /tmp/pkg
+
+        libs=$(grep -l '^type: library' "$ROOT"/*/Chart.yaml 2>/dev/null | xargs -r -n1 dirname | sort || true)
+        apps=$(grep -L '^type: library' "$ROOT"/*/Chart.yaml 2>/dev/null | xargs -r -n1 dirname | sort || true)
+
+        publish() {
+          local dir="$1" name version
+          name=$(grep -E '^name:' "$dir/Chart.yaml" | head -1 | awk '{print $2}')
+          version=$(grep -E '^version:' "$dir/Chart.yaml" | head -1 | awk '{print $2}')
+          if helm show chart "$REG/$name" --version "$version" >/dev/null 2>&1; then
+            echo "::notice::$name@$version já publicado — pulando"
+            return 0
+          fi
+          echo "::notice::publicando $name@$version"
+          # deps locais file://../x -> OCI (a lib já foi publicada antes, ordem library-first)
+          sed -i -E "s#repository: file://\.\./[^[:space:]]+#repository: $REG#g" "$dir/Chart.yaml"
+          helm dependency build "$dir"
+          helm package "$dir" -d /tmp/pkg
+          helm push "/tmp/pkg/${name}-${version}.tgz" "$REG"
+        }
+
+        for d in $libs $apps; do publish "$d"; done
+        echo "::notice::publicação concluída"

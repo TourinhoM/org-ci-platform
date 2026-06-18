@@ -1,0 +1,37 @@
+name: Helm Charts - Release (OCI)
+
+# Publica no GHCR OCI as versões NOVAS dos charts (idempotente por nome+versão).
+# Auth via GITHUB_TOKEN (packages: write) — sem login manual. cancel-in-progress
+# false: release produz artefato versionado.
+on:
+  workflow_call:
+    inputs:
+      registry:
+        required: false
+        default: oci://ghcr.io/tourinho-labs/charts
+        type: string
+      charts-dir:
+        required: false
+        default: charts
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # publica em ghcr.io/<org> (mesma org do repo)
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
+      - name: Login GHCR (OCI)
+        shell: bash
+        run: helm registry login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
+      - uses: TourinhoM/org-ci-platform/.github/actions/helm-publish-oci@main
+        with:
+          registry: ${{ inputs.registry }}
+          charts-dir: ${{ inputs.charts-dir }}
