@@ -34,7 +34,14 @@ jobs:
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - name: Login GHCR (OCI)
         shell: bash
-        run: helm registry login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GHCR_TOKEN }}"
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          if [ -z "${GHCR_TOKEN:-}" ]; then
+            echo "::error::secret GHCR_TOKEN vazio — crie um PAT/App com write:packages e registre o secret GHCR_TOKEN no repo (ou na org com acesso ao repo)."
+            exit 1
+          fi
+          echo "$GHCR_TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
       - uses: TourinhoM/org-ci-platform/.github/actions/helm-publish-oci@main
         with:
           registry: ${{ inputs.registry }}
