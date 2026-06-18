@@ -51,7 +51,9 @@ const values = {
   teamName: pick('team', '') || raw.name,
   memLimit: pick('memory', '256Mi'),
   exposeHttp: pick('http', true),
-  autoscaling: pick('autoscaling', false),
+  // defaults TÊM que bater 1:1 com schema.json (contrato) e com as constantes do
+  // day-1 (scaffolder fetch-gitops): tudo on (http+autoscaling), banco off.
+  autoscaling: pick('autoscaling', true),
   connectDatabase: pick('database', false),
 };
 
@@ -100,6 +102,14 @@ const walk = (dir) => {
     // overlays/*/externalsecret.yaml: verbatim + __APP__; subtrativo se db off.
     if (/^overlays\/[^/]+\/externalsecret\.yaml$/.test(rel)) {
       if (values.connectDatabase) mkWrite(dst, content.split('__APP__').join(values.name));
+      else if (fs.existsSync(dst)) fs.unlinkSync(dst);
+      continue;
+    }
+
+    // overlays/*/claims/appdatabase.yaml: claim de provisionamento (par do
+    // externalsecret). nunjucks (sem colisão {{ }}); subtrativo se db off.
+    if (/^overlays\/[^/]+\/claims\/appdatabase\.yaml$/.test(rel)) {
+      if (values.connectDatabase) mkWrite(dst, env.renderString(content, { values }));
       else if (fs.existsSync(dst)) fs.unlinkSync(dst);
       continue;
     }

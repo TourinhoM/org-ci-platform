@@ -31,8 +31,8 @@
     },
     "autoscaling": {
       "type": "boolean",
-      "description": "Liga HPA + PodDisruptionBudget. false = uma réplica fixa.",
-      "default": false
+      "description": "Liga HPA + PodDisruptionBudget (default true). false = uma réplica fixa, sem HPA/PDB. O golden path entrega resiliência por construção: o serviço nasce com autoscaling e o dev opta por SAIR, não por entrar.",
+      "default": true
     },
     "memory": {
       "type": "string",
@@ -42,7 +42,7 @@
     },
     "database": {
       "type": "boolean",
-      "description": "Conecta o serviço a um banco EXISTENTE do ambiente (binding envFrom + ExternalSecret db-conn materializado do Vault). NÃO provisiona banco. Promoção dev->hml->prod resolve o db-conn de cada ambiente.",
+      "description": "Provisiona um banco por ambiente e conecta o serviço. Por env: claim AppDatabase (cria user+db no postgres compartilhado e publica a conexão no Vault) + ExternalSecret materializa db-conn + binding envFrom. dev->hml->prod cada um com seu banco/credencial. false = sem banco.",
       "default": false
     }
   }
