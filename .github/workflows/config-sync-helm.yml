@@ -1,0 +1,55 @@
+name: Config Sync (Helm)
+
+# Sincroniza o service.yaml (repo de código, editado pelo dev) -> values.yaml do
+# repo de gitops (gitops-<app>), que o dev não acessa. Escrita cross-repo via
+# token do RELEASE_APP — mesma separação de responsabilidades da promoção de
+# imagem (dev mexe no contrato; máquina materializa o deploy).
+on:
+  workflow_call:
+    secrets:
+      RELEASE_APP_PRIVATE_KEY:
+        required: true
+        description: >
+          Private key (.pem) do RELEASE_APP. Declarado aqui pois cross-org não
+          herda por inherit.
+
+concurrency:
+  group: config-sync-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  config-sync:
+    runs-on: ubuntu-latest
+    if: vars.RELEASE_APP_ID != ''
+    permissions:
+      contents: read   # a escrita é no OUTRO repo (gitops), via token do App
+    steps:
+      - name: Checkout código (service.yaml)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          path: code
+          fetch-depth: 1
+
+      - name: Token do RELEASE_APP (escopado ao gitops-<app>)
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: gitops-${{ github.event.repository.name }}
+
+      - name: Checkout gitops-<app>
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          repository: ${{ github.repository_owner }}/gitops-${{ github.event.repository.name }}
+          token: ${{ steps.app-token.outputs.token }}
+          ref: main
+          path: gitops
+          persist-credentials: true
+          fetch-depth: 1
+
+      - uses: TourinhoM/org-ci-platform/.github/actions/update-helm-values@main
+        with:
+          service-file: code/service.yaml
+          gitops-dir: gitops

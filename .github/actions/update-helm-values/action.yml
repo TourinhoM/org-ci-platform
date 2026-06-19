@@ -1,0 +1,60 @@
+# Config-sync: materializa os PARÂMETROS do service.yaml (repo de código) no
+# values.yaml do repo de gitops, sob a chave do arquétipo. NÃO toca em image
+# (imagem é por ambiente, em values/<env>.yaml, domínio do CI/Kargo) nem na
+# versão do arquétipo (Chart.yaml, domínio do Renovate). Roda já dentro de um
+# checkout do gitops com token de escrita (persist-credentials).
+name: Update Helm Values (config-sync)
+description: >
+  Escreve os params do service.yaml sob a chave do arquétipo no values.yaml do
+  gitops (via yq) e commita de volta ao main. Preserva image (não está no base)
+  e Chart.yaml.
+
+inputs:
+  service-file:
+    description: Caminho do service.yaml (contrato do dev, no checkout do código)
+    required: true
+  gitops-dir:
+    description: Diretório do checkout do gitops (com Chart.yaml e values.yaml)
+    required: false
+    default: gitops
+
+runs:
+  using: composite
+  steps:
+    - name: Install yq
+      shell: bash
+      run: |
+        set -euo pipefail
+        VERSION=4.44.3
+        sudo curl -sSL -o /usr/local/bin/yq \
+          "https://github.com/mikefarah/yq/releases/download/v${VERSION}/yq_linux_amd64"
+        sudo chmod +x /usr/local/bin/yq
+        # bump-via: https://github.com/mikefarah/yq/releases
+
+    - name: Sync service.yaml -> values.yaml (sob a chave do arquétipo)
+      shell: bash
+      run: |
+        set -euo pipefail
+        gd='${{ inputs.gitops-dir }}'
+        svc='${{ inputs.service-file }}'
+        # arquétipo = nome da 1ª dependência do consumer chart
+        arch=$(yq -r '.dependencies[0].name' "$gd/Chart.yaml")
+        test -n "$arch"
+        echo "arquétipo: $arch"
+        # substitui o bloco do arquétipo pelos params do service.yaml
+        yq -i ".\"${arch}\" = load(\"${svc}\")" "$gd/values.yaml"
+        echo "values.yaml após sync:"; cat "$gd/values.yaml"
+
+    - name: Commit and push
+      shell: bash
+      working-directory: ${{ inputs.gitops-dir }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add values.yaml
+        if git diff --cached --quiet; then
+          echo "Nenhuma alteração — values já em sincronia com o service.yaml."
+          exit 0
+        fi
+        git commit -m "chore(config): sync params do service.yaml [skip ci]"
+        git push origin HEAD:main
