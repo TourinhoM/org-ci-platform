@@ -39,7 +39,9 @@ runs:
           echo "::notice::publicando $name@$version"
           # deps locais file://../x -> OCI (a lib já foi publicada antes, ordem library-first)
           sed -i -E "s#repository: file://\.\./[^[:space:]]+#repository: $REG#g" "$dir/Chart.yaml"
-          helm dependency build "$dir"
+          # reescrever o repository dessincroniza o Chart.lock -> `update` (re-resolve do OCI
+          # e regenera o lock), não `build` (que exige lock em sincronia com o Chart.yaml).
+          helm dependency update "$dir"
           helm package "$dir" -d /tmp/pkg
           helm push "/tmp/pkg/${name}-${version}.tgz" "$REG"
         }
