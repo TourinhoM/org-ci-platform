@@ -1,0 +1,46 @@
+# Atualiza a image: no values.yaml do consumer chart (gitops Helm) e commita de
+# volta ao main com [skip ci]. Irmã da update-kustomize-image para o caminho Helm
+# (consumer chart consumindo arquétipo central por versão).
+# GITHUB_TOKEN/App token com contents:write é suficiente — push no mesmo repo via
+# esses tokens não re-dispara workflows (e [skip ci] como belt-and-suspenders).
+name: Update Helm Image Tag
+description: >
+  Atualiza o valor de `image:` no values.yaml do consumer chart e commita + pusha
+  de volta ao main. O consumer chart tem uma única chave image: (sob o arquétipo).
+
+inputs:
+  image-ref:
+    description: Referência completa com tag (ex. ghcr.io/org/app:1.0.0)
+    required: true
+  values-path:
+    description: Caminho do values.yaml relativo ao root do repo
+    required: false
+    default: values.yaml
+
+runs:
+  using: composite
+  steps:
+    - name: Update image in values.yaml
+      shell: bash
+      run: |
+        set -euo pipefail
+        f='${{ inputs.values-path }}'
+        ref='${{ inputs.image-ref }}'
+        # Substitui o valor da única linha `image:` (sob a chave do arquétipo).
+        # Delimitador # no sed pois a ref tem / e : (mas não #).
+        sed -i -E "s#^([[:space:]]*image:[[:space:]]*).*#\1${ref}#" "$f"
+        echo "values.yaml após atualização:"; grep -n 'image:' "$f"
+        grep -q "image: *${ref}\$" "$f"   # falha o job se a substituição não pegou
+
+    - name: Commit and push
+      shell: bash
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add '${{ inputs.values-path }}'
+        if git diff --cached --quiet; then
+          echo "Nenhuma alteração — image já estava atualizada."
+          exit 0
+        fi
+        git commit -m "chore(helm): update image to ${{ inputs.image-ref }} [skip ci]"
+        git push origin HEAD:main
