@@ -1,49 +1,45 @@
-# Config-sync: materializa os PARÂMETROS do service.yaml (repo de código) no
-# values.yaml do repo de gitops, sob a chave do arquétipo. NÃO toca em image
-# (imagem é por ambiente, em values/<env>.yaml, domínio do CI/Kargo) nem na
-# versão do arquétipo (Chart.yaml, domínio do Renovate). Roda já dentro de um
-# checkout do gitops com token de escrita (persist-credentials).
-name: Update Helm Values (config-sync)
+# Config-sync (Helm, values-layering): COPIA o contrato do dev de
+# tools/microsservico/ (repo de código) pro repo de gitops. Cópia pura — o dev já
+# escreve na forma do gitops (aninhado sob a chave do arquétipo), então não há
+# re-key. Materializa:
+#   tools/microsservico/values.yaml        -> gitops/values.yaml        (base)
+#   tools/microsservico/values/<env>.yaml  -> gitops/values/<env>.yaml  (delta do dev)
+# NÃO toca em values/<env>.image.yaml (dono = Kargo) nem no Chart.yaml (Renovate).
+name: Config Sync (Helm values-layering)
 description: >
-  Escreve os params do service.yaml sob a chave do arquétipo no values.yaml do
-  gitops (via yq) e commita de volta ao main. Preserva image (não está no base)
-  e Chart.yaml.
+  Copia os values do dev (tools/microsservico) pro gitops (base + delta por env),
+  preservando os arquivos de máquina (image do Kargo, Chart do Renovate).
 
 inputs:
-  service-file:
-    description: Caminho do service.yaml (contrato do dev, no checkout do código)
+  tools-dir:
+    description: Diretório tools/microsservico no checkout do código (base + values/<env>.yaml)
     required: true
   gitops-dir:
-    description: Diretório do checkout do gitops (com Chart.yaml e values.yaml)
+    description: Diretório do checkout do gitops (com Chart.yaml e values/)
     required: false
     default: gitops
 
 runs:
   using: composite
   steps:
-    - name: Install yq
+    - name: Copia values do dev (base + deltas por env) pro gitops
       shell: bash
       run: |
         set -euo pipefail
-        VERSION=4.44.3
-        sudo curl -sSL -o /usr/local/bin/yq \
-          "https://github.com/mikefarah/yq/releases/download/v${VERSION}/yq_linux_amd64"
-        sudo chmod +x /usr/local/bin/yq
-        # bump-via: https://github.com/mikefarah/yq/releases
-
-    - name: Sync service.yaml -> values.yaml (sob a chave do arquétipo)
-      shell: bash
-      run: |
-        set -euo pipefail
+        td='${{ inputs.tools-dir }}'
         gd='${{ inputs.gitops-dir }}'
-        svc='${{ inputs.service-file }}'
-        # arquétipo = nome da 1ª dependência do consumer chart
-        arch=$(yq -r '.dependencies[0].name' "$gd/Chart.yaml")
-        test -n "$arch"
-        echo "arquétipo: $arch"
-        # substitui o bloco do arquétipo pelos params do service.yaml
-        yq -i ".\"${arch}\" = load(\"${svc}\")" "$gd/values.yaml"
-        echo "values.yaml após sync:"; cat "$gd/values.yaml"
+
+        # Base — o dev já escreve aninhado sob a chave do arquétipo: cópia direta.
+        cp "$td/values.yaml" "$gd/values.yaml"
+
+        # Deltas por ambiente — só os arquivos do dev (dev/hml/prod.yaml). O glob
+        # NÃO pega *.image.yaml (Kargo) porque esses não existem em tools/.
+        mkdir -p "$gd/values"
+        if compgen -G "$td/values/*.yaml" > /dev/null; then
+          cp "$td"/values/*.yaml "$gd/values/"
+        fi
+
+        echo "gitops/values.yaml e values/<env>.yaml sincronizados a partir de tools/microsservico."
 
     - name: Commit and push
       shell: bash
@@ -51,10 +47,13 @@ runs:
       run: |
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add values.yaml
+        # Só os arquivos do dev — image.yaml e Chart.yaml ficam de fora do add.
+        git add values.yaml values/*.yaml
+        # Remove do stage qualquer *.image.yaml que o glob acima tenha pego.
+        git reset -q -- 'values/*.image.yaml' 2>/dev/null || true
         if git diff --cached --quiet; then
-          echo "Nenhuma alteração — values já em sincronia com o service.yaml."
+          echo "Nenhuma alteração — gitops já em sincronia com o contrato."
           exit 0
         fi
-        git commit -m "chore(config): sync params do service.yaml [skip ci]"
+        git commit -m "chore(config): sync values do tools/microsservico [skip ci]"
         git push origin HEAD:main

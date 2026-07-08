@@ -136,40 +136,14 @@ jobs:
           registry: ghcr.io
 
   # -----------------------------
-  # 7️⃣ Promove a tag no repo de deploy (gitops-<app>, cross-repo) — HELM
+  # 7️⃣ Promoção da image → agora é do KARGO (não mais o CI)
   # -----------------------------
-  # ÚNICA diferença vs ci-tag.yml: o gitops-<app> deste cenário é um consumer
-  # chart Helm (values.yaml na raiz), então promove com update-helm-image (edita
-  # o image: do values.yaml), não update-kustomize-image. Image = fast lane (CI
-  # promove direto, sem PR); a versão do arquétipo/chart é slow lane (Renovate).
-  update-gitops:
-    name: Promove tag → gitops-<app> (Helm)
-    runs-on: ubuntu-latest
-    needs: [docker-push, prepare-image]
-    if: vars.RELEASE_APP_ID != ''
-    permissions:
-      contents: read   # a escrita é no OUTRO repo, via token do App (não GITHUB_TOKEN)
-    steps:
-      - name: Gera app token (escopado ao gitops-<app>)
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ vars.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: gitops-${{ github.event.repository.name }}
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          repository: ${{ github.repository_owner }}/gitops-${{ github.event.repository.name }}
-          token: ${{ steps.app-token.outputs.token }}
-          ref: main
-          persist-credentials: true
-          fetch-depth: 1
-      # Consumer chart na raiz do repo de deploy → values.yaml na raiz.
-      - uses: TourinhoM/org-ci-platform/.github/actions/update-helm-image@main
-        with:
-          image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
-          values-path: values.yaml
+  # O antigo job update-gitops (update-helm-image no values.yaml) foi REMOVIDO: no
+  # modelo values-layering + Kargo, a image é escrita pelo Warehouse/Stage (pin por
+  # digest em values/<env>.image.yaml; dev auto → hml → prod gated). O CI só builda,
+  # escaneia e publica no ghcr; o Kargo observa e promove — assim CI e Kargo não
+  # brigam pela image. (RELEASE_APP_PRIVATE_KEY segue declarado como opcional p/
+  # compat com o caller, mas não é mais usado aqui.)
 
   # -----------------------------
   # 8️⃣ Supply-chain attestations
