@@ -3,6 +3,11 @@ name: Helm Charts - PR (lint + bump)
 # Gate de PR pra monorepo de charts: chart-testing (ct) linta SÓ os charts
 # mudados (git diff) e FALHA se um chart mudou sem bumpar a version (ct.yaml:
 # check-version-increment). É o que torna o versionamento manual seguro.
+#
+# Deps (Chart.lock/charts/*.tgz) NÃO são versionadas — pra dep file:// interna com
+# versão exata o lock não trava nada e só geraria churn. Regeneramos no runner com
+# `helm dependency update` antes do ct (o ct roda `helm dependency build`, que
+# precisa do lock presente). O release faz o mesmo update no publish-oci.
 on:
   workflow_call:
     inputs:
@@ -27,6 +32,15 @@ jobs:
           fetch-depth: 0   # ct precisa do histórico pra diff vs target-branch
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2.8.0
+      - name: Resolve deps dos charts (regenera lock/vendor — não versionados)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for d in charts/*/; do
+            [ -f "${d}Chart.yaml" ] || continue
+            # só charts com dependências; a library common (sem deps) é ignorada
+            grep -q '^dependencies:' "${d}Chart.yaml" && helm dependency update "$d"
+          done
       - name: ct lint (charts mudados + enforce bump)
         shell: bash
         run: ct lint --config ct.yaml --target-branch "${{ inputs.target-branch }}"
