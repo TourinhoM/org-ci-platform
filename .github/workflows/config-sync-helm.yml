@@ -6,20 +6,18 @@ name: Config Sync (Helm)
 # separação de responsabilidades (dev mexe no contrato; máquina materializa).
 # A image NÃO passa por aqui: é do Kargo (values/<env>.image.yaml).
 #
-# A materialização é via PULL REQUEST no gitops (não push direto): a plataforma
-# revisa antes do deploy. O gate de aprovação é enforced por branch protection +
-# CODEOWNERS no gitops-<app> (não pela action) — o token do App é escopado a um
-# repo e não pede review de team. Re-push do dev antes do merge ATUALIZA o mesmo
-# PR (branch fixo), então N edições viram 1 diff pra revisar.
+# Push DIRETO no main do gitops — mesmo modelo do Kargo (o gate é a fonte, não o
+# merge): gitops/main é machine-owned pelos dois fluxos (config aqui, image no
+# Kargo), sem branch protection nem PR. Se um dia quiser gate humano, ele vai no
+# repo de CÓDIGO (CODEOWNERS em tools/microsservico/**), não aqui.
 on:
   workflow_call:
     secrets:
       RELEASE_APP_PRIVATE_KEY:
         required: true
         description: >
-          Private key (.pem) do RELEASE_APP. Declarado aqui pois cross-org não
-          herda por inherit. O App precisa de Contents: write E Pull requests:
-          write no gitops-<app> (o modelo PR exige o segundo além do primeiro).
+          Private key (.pem) do RELEASE_APP (Contents: write no gitops-<app>).
+          Declarado aqui pois cross-org não herda por inherit.
 
 concurrency:
   group: config-sync-${{ github.repository }}
@@ -55,38 +53,30 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           ref: main
           path: gitops
+          persist-credentials: true
           fetch-depth: 1
 
       # Cópia pura (values-layering, sem re-key): o dev já escreve na forma do
       # gitops. image.yaml (Kargo) e Chart.yaml (Renovate) não existem em tools/,
       # então nunca são copiados/tocados.
-      - name: Materializa o contrato no gitops
+      - name: Sincroniza values e push no gitops
+        working-directory: gitops
         run: |
           set -euo pipefail
-          cp code/tools/microsservico/values.yaml gitops/values.yaml
-          mkdir -p gitops/values
-          if compgen -G "code/tools/microsservico/values/*.yaml" > /dev/null; then
-            cp code/tools/microsservico/values/*.yaml gitops/values/
+          cp ../code/tools/microsservico/values.yaml values.yaml
+          mkdir -p values
+          if compgen -G "../code/tools/microsservico/values/*.yaml" > /dev/null; then
+            cp ../code/tools/microsservico/values/*.yaml values/
           fi
 
-      - name: Abre/atualiza PR no gitops-<app>
-        uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7.0.9
-        with:
-          path: gitops
-          token: ${{ steps.app-token.outputs.token }}
-          branch: config-sync/${{ github.event.repository.name }}
-          delete-branch: true
-          # Escopa o commit aos values do dev. image.yaml/Chart.yaml não mudam
-          # (não foram copiados), então nem entram no diff.
-          add-paths: |
-            values.yaml
-            values/*.yaml
-          commit-message: "chore(config): sync values do tools/microsservico"
-          title: "chore(config): sync de ${{ github.repository }}"
-          body: |
-            Sincroniza `tools/microsservico/values*` de `${{ github.repository }}`
-            (commit ${{ github.sha }}) para os values do gitops.
-
-            Cópia pura (values-layering). Não toca `values/<env>.image.yaml` (Kargo)
-            nem `Chart.yaml` (Renovate). **Merge = deploy** — revisar antes de aprovar.
-          labels: config-sync
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Só os values do dev entram no add; image.yaml (Kargo)/Chart.yaml ficam de fora.
+          git add values.yaml values/*.yaml
+          git reset -q -- 'values/*.image.yaml' 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração — gitops já em sincronia com o contrato."
+            exit 0
+          fi
+          git commit -m "chore(config): sync values do tools/microsservico [skip ci]"
+          git push origin HEAD:main
