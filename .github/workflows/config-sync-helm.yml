@@ -5,6 +5,12 @@ name: Config Sync (Helm)
 # (values-layering: sem re-key). Escrita cross-repo via token do RELEASE_APP —
 # separação de responsabilidades (dev mexe no contrato; máquina materializa).
 # A image NÃO passa por aqui: é do Kargo (values/<env>.image.yaml).
+#
+# A materialização é via PULL REQUEST no gitops (não push direto): a plataforma
+# revisa antes do deploy. O gate de aprovação é enforced por branch protection +
+# CODEOWNERS no gitops-<app> (não pela action) — o token do App é escopado a um
+# repo e não pede review de team. Re-push do dev antes do merge ATUALIZA o mesmo
+# PR (branch fixo), então N edições viram 1 diff pra revisar.
 on:
   workflow_call:
     secrets:
@@ -12,7 +18,8 @@ on:
         required: true
         description: >
           Private key (.pem) do RELEASE_APP. Declarado aqui pois cross-org não
-          herda por inherit.
+          herda por inherit. O App precisa de Contents: write E Pull requests:
+          write no gitops-<app> (o modelo PR exige o segundo além do primeiro).
 
 concurrency:
   group: config-sync-${{ github.repository }}
@@ -30,6 +37,7 @@ jobs:
         with:
           path: code
           fetch-depth: 1
+          sparse-checkout: tools/microsservico
 
       - name: Token do RELEASE_APP (escopado ao gitops-<app>)
         id: app-token
@@ -47,10 +55,38 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
           ref: main
           path: gitops
-          persist-credentials: true
           fetch-depth: 1
 
-      - uses: TourinhoM/org-ci-platform/.github/actions/update-helm-values@main
+      # Cópia pura (values-layering, sem re-key): o dev já escreve na forma do
+      # gitops. image.yaml (Kargo) e Chart.yaml (Renovate) não existem em tools/,
+      # então nunca são copiados/tocados.
+      - name: Materializa o contrato no gitops
+        run: |
+          set -euo pipefail
+          cp code/tools/microsservico/values.yaml gitops/values.yaml
+          mkdir -p gitops/values
+          if compgen -G "code/tools/microsservico/values/*.yaml" > /dev/null; then
+            cp code/tools/microsservico/values/*.yaml gitops/values/
+          fi
+
+      - name: Abre/atualiza PR no gitops-<app>
+        uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7.0.9
         with:
-          tools-dir: code/tools/microsservico
-          gitops-dir: gitops
+          path: gitops
+          token: ${{ steps.app-token.outputs.token }}
+          branch: config-sync/${{ github.event.repository.name }}
+          delete-branch: true
+          # Escopa o commit aos values do dev. image.yaml/Chart.yaml não mudam
+          # (não foram copiados), então nem entram no diff.
+          add-paths: |
+            values.yaml
+            values/*.yaml
+          commit-message: "chore(config): sync values do tools/microsservico"
+          title: "chore(config): sync de ${{ github.repository }}"
+          body: |
+            Sincroniza `tools/microsservico/values*` de `${{ github.repository }}`
+            (commit ${{ github.sha }}) para os values do gitops.
+
+            Cópia pura (values-layering). Não toca `values/<env>.image.yaml` (Kargo)
+            nem `Chart.yaml` (Renovate). **Merge = deploy** — revisar antes de aprovar.
+          labels: config-sync
