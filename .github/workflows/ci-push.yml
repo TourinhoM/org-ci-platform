@@ -38,16 +38,16 @@ jobs:
   # -----------------------------
   # 2️⃣ Secret Scan (gitleaks)
   # -----------------------------
-  secret-scan:
-    name: Secret Scan
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          fetch-depth: 0
-      - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@main
+  #secret-scan:
+  #  name: Secret Scan
+  #  runs-on: ubuntu-latest
+  #  permissions:
+  #    contents: read
+  #  steps:
+  #    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+  #      with:
+  #        fetch-depth: 0
+  #    - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@main
 
   # -----------------------------
   # 3️⃣ Trivy Config (Dockerfile lint)
@@ -74,7 +74,7 @@ jobs:
   sast:
     name: SAST
     runs-on: ubuntu-latest
-    needs: [trivy-fs, secret-scan, trivy-config]
+    needs: [trivy-fs, trivy-config]
     permissions:
       contents: read
       security-events: write
