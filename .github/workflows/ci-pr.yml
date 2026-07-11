@@ -9,7 +9,11 @@ on:
     secrets:
       SONAR_TOKEN:
         required: false
-
+      gitleaks-config:
+        description: Caminho do config do gitleaks
+        required: false
+        type: string
+        default: ""
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
