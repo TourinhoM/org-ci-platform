@@ -6,14 +6,15 @@ on:
       coverage-exclusions:
         required: false
         type: string
-    secrets:
-      SONAR_TOKEN:
-        required: false
       gitleaks-config:
         description: Caminho do config do gitleaks
         required: false
         type: string
         default: ""
+    secrets:
+      SONAR_TOKEN:
+        required: false
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
