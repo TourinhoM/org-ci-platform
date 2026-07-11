@@ -45,7 +45,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: TourinhoM/org-ci-platform/.github/actions/secret-scan@main
-
+        with:
+          gitleaks-config: ${{ inputs.gitleaks-config }}
   # -----------------------------
   # 3️⃣ SAST (SonarQube quando SONAR_ORG está configurado; senão Semgrep)
   # -----------------------------

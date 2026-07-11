@@ -11,6 +11,13 @@
 name: Secret Scan
 description: Gitleaks scan no historico git (binario direto, sem license)
 
+
+inputs:
+  gitleaks-config:
+    description: Caminho do arquivo de configuração do gitleaks
+    required: false
+    default: ""
+
 runs:
   using: composite
   steps:
@@ -28,5 +35,20 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        gitleaks git --no-banner --redact --verbose .
+
+        if [ -n "${{ inputs.gitleaks-config }}" ]; then
+          gitleaks git \
+            --no-banner \
+            --redact \
+            --verbose \
+            --config "${{ inputs.gitleaks-config }}" \
+            .
+        else
+          gitleaks git \
+            --no-banner \
+            --redact \
+            --verbose \
+            .
+        fi
+
         echo "gitleaks: nenhum secret no historico." >> "$GITHUB_STEP_SUMMARY"
