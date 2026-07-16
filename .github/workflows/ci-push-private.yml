@@ -100,17 +100,17 @@ jobs:
   # -----------------------------
   # 5️⃣ Prepare Image
   # -----------------------------
-  #prepare-image:
-  #  name: Prepare image
-  #  runs-on: ubuntu-latest
-  #  needs: sast
-  #  outputs:
-  #    image_repo: ${{ steps.prepare.outputs.repo }}
-  #    image_tag: ${{ steps.prepare.outputs.tag }}
-  #    push_tags: ${{ steps.prepare.outputs.push_tags }}
-  #  steps:
-  #    - id: prepare
-  #      uses: TourinhoM/org-ci-platform/.github/actions/prepare-image-tag@main
+  prepare-image:
+    name: Prepare image
+    runs-on: ubuntu-latest
+    needs: sast
+    outputs:
+      image_repo: ${{ steps.prepare.outputs.repo }}
+      image_tag: ${{ steps.prepare.outputs.tag }}
+      push_tags: ${{ steps.prepare.outputs.push_tags }}
+    steps:
+      - id: prepare
+        uses: TourinhoM/org-ci-platform/.github/actions/prepare-image-tag@main
 
   # -----------------------------
   # 6️⃣ Docker Build + Trivy Image
