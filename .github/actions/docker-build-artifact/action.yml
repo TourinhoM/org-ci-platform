@@ -9,6 +9,10 @@ inputs:
   dockerfile-path:
     required: false
     default: './Dockerfile'
+  upload-artifact:
+    description: 'Upload image.tar as GitHub artifact (set to false to skip upload and save storage)'
+    required: false
+    default: 'true'
 
 runs:
   using: composite
@@ -32,6 +36,7 @@ runs:
       shell: bash
 
     - name: Upload image artifact
+      if: inputs.upload-artifact == 'true'
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: docker-image
