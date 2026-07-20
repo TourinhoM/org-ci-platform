@@ -33,7 +33,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
 
   # -----------------------------
@@ -46,7 +46,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-config@main
         with:
           config-path: ${{ inputs.dockerfile-path }}
@@ -78,7 +78,7 @@ jobs:
       packages: write
       security-events: write
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: TourinhoM/org-ci-platform/.github/actions/docker-build-artifact@main
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
@@ -136,7 +136,7 @@ jobs:
   #        private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
   #        owner: ${{ github.repository_owner }}
   #        repositories: gitops-${{ github.event.repository.name }}
-  #    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+  #    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
   #      with:
   #        repository: ${{ github.repository_owner }}/gitops-${{ github.event.repository.name }}
   #        token: ${{ steps.app-token.outputs.token }}
