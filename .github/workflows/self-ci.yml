@@ -33,12 +33,12 @@ jobs:
       contents: read
       pull-requests: write   # reviewdog: anota PR com findings
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # reviewdog/action-actionlint e a opcao indicada pelo proprio README do
       # actionlint (rhysd nao mantem action oficial). Vem com shellcheck
       # integrado pra blocos `run: bash`.
-      - uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1.72.0
+      - uses: reviewdog/action-actionlint@01d2dd67e3525e5a0ce72e8fa38e5a3ab65e2ded # v1.72.1
         with:
           reporter: github-pr-check
           fail_level: error
@@ -49,7 +49,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install yamllint
         run: pip install --user yamllint==1.35.1
@@ -80,6 +80,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check third-party uses are pinned by SHA
         run: bash .github/scripts/check-sha-pinning.sh .github
