@@ -1,0 +1,11 @@
+name: Semantic Release (charts)
+on:
+  push:
+    branches: [main]
+jobs:
+  semantic-release:
+    permissions:
+      contents: write
+    uses: TourinhoM/org-ci-platform/.github/workflows/helm-charts-semantic-release.yml@main
+    secrets:
+      RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
