@@ -18,6 +18,11 @@ on:
         required: false
         default: charts
         type: string
+      ref:
+        description: Vazio = SHA que disparou o workflow (default do checkout).
+        required: false
+        default: ''
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,6 +36,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
       - name: Resolve registry + login GHCR
         shell: bash
