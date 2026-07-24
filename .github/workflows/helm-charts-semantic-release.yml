@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - name: Generate app token
         if: vars.RELEASE_APP_ID != ''
@@ -37,6 +38,7 @@ jobs:
           persist-credentials: false
 
       - name: Release common
+        id: release-common
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
@@ -46,6 +48,51 @@ jobs:
             semantic-release-monorepo
             @semantic-release/exec
             @semantic-release/git
+
+      # Sem isso o bump da common não cascateia: backend/batch/frontend
+      # herdam via file://, invisível pro Renovate, e o commit-analyzer de
+      # cada um só olha commit que toque o próprio path do chart.
+      #
+      # Vai por PR (não commit direto) porque essa é a única mudança do
+      # pipeline que passa pelo ct lint antes de virar release — o resto do
+      # fluxo (common/backend/batch/frontend) sempre commitou direto em main,
+      # sem gate nenhum. Major fica parado pra revisão manual; minor/patch
+      # faz automerge (mas só depois do check verde).
+      - name: Propaga versão da common pros consumidores (PR)
+        if: steps.release-common.outputs.new_release_published == 'true'
+        env:
+          COMMON_VERSION: ${{ steps.release-common.outputs.new_release_version }}
+          RELEASE_TYPE: ${{ steps.release-common.outputs.new_release_type }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "${APP_SLUG:-github-actions}[bot]"
+          git config user.email "${APP_SLUG:-github-actions}[bot]@users.noreply.github.com"
+
+          BRANCH="chore/bump-common-${COMMON_VERSION}"
+          git checkout -b "$BRANCH"
+          for chart in backend batch frontend; do
+            yq -i ".dependencies[0].version = \"${COMMON_VERSION}\"" ${{ inputs.charts-dir }}/$chart/Chart.yaml
+          done
+          git add ${{ inputs.charts-dir }}/backend/Chart.yaml ${{ inputs.charts-dir }}/batch/Chart.yaml ${{ inputs.charts-dir }}/frontend/Chart.yaml
+          git commit -m "fix(charts): bump referência da lib common pra ${COMMON_VERSION} em backend/batch/frontend"
+          git push origin "$BRANCH"
+
+          BODY="Common saiu como **${RELEASE_TYPE}**."
+          if [ "$RELEASE_TYPE" = "major" ]; then
+            BODY="$BODY
+
+⚠️ BREAKING — sem automerge, revisar antes (pode exigir mudança em values.yaml dos consumidores)."
+          fi
+
+          PR_URL=$(gh pr create --base main --head "$BRANCH" \
+            --title "fix(charts): bump referência da lib common pra ${COMMON_VERSION}" \
+            --body "$BODY")
+
+          if [ "$RELEASE_TYPE" != "major" ]; then
+            gh pr merge "$PR_URL" --auto --squash
+          fi
 
       - name: Release backend
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
