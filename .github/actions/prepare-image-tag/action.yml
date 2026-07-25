@@ -26,7 +26,7 @@ runs:
       run: |
         set -euo pipefail
 
-        REPO=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+        REPO=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]' | sed 's/__\+/_/g; s/_$//')
         REGISTRY="${{ inputs.registry }}"
 
         echo "repo=$REPO" >> "$GITHUB_OUTPUT"
