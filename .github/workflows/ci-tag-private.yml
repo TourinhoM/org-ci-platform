@@ -11,7 +11,7 @@ on:
         required: false
         default: false
         type: boolean
-        description: 'Pula todos os steps de segurança (trivy-fs, trivy-config, trivy-image)'
+        description: 'Roda os scans de segurança em modo não-bloqueante (findings reportados mas não travam a pipe)'
     secrets:
       RELEASE_APP_PRIVATE_KEY:
         required: false
@@ -39,11 +39,11 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - name: ⚠️ Security bypass is ACTIVE
+      - name: ⚠️ Security scans running in non-blocking mode
         if: ${{ inputs.security-bypass }}
-        run: echo "::warning::Security scans are bypassed for this run (security-bypass=true)."
+        run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
-        if: ${{ !inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass }}
 
   # -----------------------------
   # 2️⃣ Trivy Config (Dockerfile lint)
@@ -56,11 +56,11 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - name: ⚠️ Security bypass is ACTIVE
+      - name: ⚠️ Security scans running in non-blocking mode
         if: ${{ inputs.security-bypass }}
-        run: echo "::warning::Security scans are bypassed for this run (security-bypass=true)."
+        run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-config@main
-        if: ${{ !inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass }}
         with:
           config-path: ${{ inputs.dockerfile-path }}
 
@@ -97,11 +97,11 @@ jobs:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
           dockerfile-path: ./Dockerfile
           upload-artifact: 'false'
-      - name: ⚠️ Security bypass is ACTIVE
+      - name: ⚠️ Security scans running in non-blocking mode
         if: ${{ inputs.security-bypass }}
-        run: echo "::warning::Security scans are bypassed for this run (security-bypass=true)."
+        run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-image@main
-        if: ${{ !inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass }}
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
 

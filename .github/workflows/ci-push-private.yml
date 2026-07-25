@@ -14,7 +14,7 @@ on:
         required: false
         default: false
         type: boolean
-        description: 'Pula todos os steps de segurança (trivy-fs, trivy-config, sast, trivy-image)'
+        description: 'Roda os scans de segurança em modo não-bloqueante (findings reportados mas não travam a pipe)'
     secrets:
       SONAR_TOKEN:
         required: false
@@ -38,11 +38,11 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
-      - name: ⚠️ Security bypass is ACTIVE
+      - name: ⚠️ Security scans running in non-blocking mode
         if: ${{ inputs.security-bypass }}
-        run: echo "::warning::Security scans are bypassed for this run (security-bypass=true)."
+        run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
-        if: ${{ !inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass }}
 
   # -----------------------------
   # 2️⃣ Secret Scan (gitleaks)
@@ -69,11 +69,11 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - name: ⚠️ Security bypass is ACTIVE
+      - name: ⚠️ Security scans running in non-blocking mode
         if: ${{ inputs.security-bypass }}
-        run: echo "::warning::Security scans are bypassed for this run (security-bypass=true)."
+        run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-config@main
-        if: ${{ !inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass }}
         with:
           config-path: ${{ inputs.dockerfile-path }}
 
@@ -95,14 +95,16 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
-      - name: ⚠️ Security bypass is ACTIVE
+      - name: ⚠️ Security scans running in non-blocking mode
         if: ${{ inputs.security-bypass }}
-        run: echo "::warning::Security scans are bypassed for this run (security-bypass=true)."
+        run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
-        if: ${{ !inputs.security-bypass && !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        continue-on-error: ${{ inputs.security-bypass }}
       - name: SonarQube
-        if: ${{ !inputs.security-bypass && vars.SONAR_ORG != '' && !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ vars.SONAR_ORG != '' && !startsWith(github.ref, 'refs/tags/') }}
         uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
+        continue-on-error: ${{ inputs.security-bypass }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
@@ -110,8 +112,9 @@ jobs:
           coverage-exclusions: ${{ inputs.coverage-exclusions }}
           sonar-args: ""
       - name: Semgrep
-        if: ${{ !inputs.security-bypass && vars.SONAR_ORG == '' && !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ vars.SONAR_ORG == '' && !startsWith(github.ref, 'refs/tags/') }}
         uses: TourinhoM/org-ci-platform/.github/actions/semgrep@main
+        continue-on-error: ${{ inputs.security-bypass }}
 
   # -----------------------------
   # 5️⃣ Prepare Image
@@ -148,11 +151,11 @@ jobs:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
           dockerfile-path: ./Dockerfile
           upload-artifact: 'false'
-      - name: ⚠️ Security bypass is ACTIVE
+      - name: ⚠️ Security scans running in non-blocking mode
         if: ${{ inputs.security-bypass }}
-        run: echo "::warning::Security scans are bypassed for this run (security-bypass=true)."
+        run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-image@main
-        if: ${{ !inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass }}
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
 
