@@ -37,3 +37,27 @@ runs:
       with:
         sarif_file: 'trivy-config-results.sarif'
         category: trivy-config
+
+    - name: Trivy Config — Job Summary
+      if: always()
+      shell: bash
+      run: |
+        SARIF="trivy-config-results.sarif"
+        echo "## 🔍 Trivy Config Scan" >> "$GITHUB_STEP_SUMMARY"
+        if [ ! -f "$SARIF" ]; then
+          echo "_Scan não executado._" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        COUNT=$(jq '.runs[0].results | length' "$SARIF")
+        if [ "$COUNT" -eq 0 ]; then
+          echo "✅ Nenhuma misconfiguration encontrada." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        echo "| ID | Severidade | Descrição |" >> "$GITHUB_STEP_SUMMARY"
+        echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+        jq -r '.runs[0].results[] |
+          (.level | if . == "error" then "🔴 CRITICAL/HIGH" elif . == "warning" then "🟡 MEDIUM" else "⚪ LOW" end) as $sev |
+          "| \(.ruleId) | \($sev) | \(.message.text | split("\n")[0] | .[0:120]) |"
+        ' "$SARIF" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "_Total: **$COUNT** finding(s)_" >> "$GITHUB_STEP_SUMMARY"
