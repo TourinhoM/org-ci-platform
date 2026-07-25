@@ -7,6 +7,11 @@ on:
         required: false
         default: './Dockerfile'
         type: string
+      security-bypass:
+        required: false
+        default: false
+        type: boolean
+        description: 'Pula todos os steps de segurança (trivy-fs, trivy-config, trivy-image)'
     secrets:
       RELEASE_APP_PRIVATE_KEY:
         required: false
@@ -34,7 +39,11 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: ⚠️ Security bypass is ACTIVE
+        if: ${{ inputs.security-bypass }}
+        run: echo "::warning::Security scans are bypassed for this run (security-bypass=true)."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
+        if: ${{ !inputs.security-bypass }}
 
   # -----------------------------
   # 2️⃣ Trivy Config (Dockerfile lint)
@@ -47,7 +56,11 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: ⚠️ Security bypass is ACTIVE
+        if: ${{ inputs.security-bypass }}
+        run: echo "::warning::Security scans are bypassed for this run (security-bypass=true)."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-config@main
+        if: ${{ !inputs.security-bypass }}
         with:
           config-path: ${{ inputs.dockerfile-path }}
 
@@ -84,7 +97,11 @@ jobs:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
           dockerfile-path: ./Dockerfile
           upload-artifact: 'false'
+      - name: ⚠️ Security bypass is ACTIVE
+        if: ${{ inputs.security-bypass }}
+        run: echo "::warning::Security scans are bypassed for this run (security-bypass=true)."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-image@main
+        if: ${{ !inputs.security-bypass }}
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
 
