@@ -42,7 +42,7 @@ jobs:
         if: ${{ inputs.security-bypass }}
         run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-fs@main
-        continue-on-error: ${{ inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass == true }}
 
   # -----------------------------
   # 2️⃣ Secret Scan (gitleaks)
@@ -73,7 +73,7 @@ jobs:
         if: ${{ inputs.security-bypass }}
         run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-config@main
-        continue-on-error: ${{ inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass == true }}
         with:
           config-path: ${{ inputs.dockerfile-path }}
 
@@ -101,11 +101,11 @@ jobs:
         run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        continue-on-error: ${{ inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass == true }}
       - name: SonarQube
         if: ${{ vars.SONAR_ORG != '' && !startsWith(github.ref, 'refs/tags/') }}
         uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
-        continue-on-error: ${{ inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass == true }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
@@ -115,7 +115,7 @@ jobs:
       - name: Semgrep
         if: ${{ vars.SONAR_ORG == '' && !startsWith(github.ref, 'refs/tags/') }}
         uses: TourinhoM/org-ci-platform/.github/actions/semgrep@main
-        continue-on-error: ${{ inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass == true }}
 
   # -----------------------------
   # 5️⃣ Prepare Image
@@ -158,7 +158,7 @@ jobs:
         if: ${{ inputs.security-bypass }}
         run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-image@main
-        continue-on-error: ${{ inputs.security-bypass }}
+        continue-on-error: ${{ inputs.security-bypass == true }}
         with:
           image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
 
