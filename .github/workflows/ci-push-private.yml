@@ -78,12 +78,20 @@ jobs:
           config-path: ${{ inputs.dockerfile-path }}
 
   # -----------------------------
-  # 4️⃣ SAST (SonarQube quando SONAR_ORG está configurado; senão Semgrep)
+  # 4️⃣ Unit Test
   # -----------------------------
-  # Job único com steps condicionais em vez de dois jobs mutuamente
-  # exclusivos: skip de JOB contamina a cadeia transitiva de needs e pula
-  # docker-build/trivy-image/docker-push mesmo com prepare-image verde.
-  # Skip de STEP não contamina nada — o grafo fica 100% incondicional.
+  # SAST removido nos repos privados: SonarQube e Semgrep saíram porque a
+  # integração nativa SonarCloud ↔ GitHub já cobre PR e branch principal.
+  # Restou o unit-test.
+  #
+  # O job mantém o id `sast` e o name `SAST` de propósito: o name é o que
+  # aparece como check no GitHub, então renomear quebra required status check
+  # de branch protection que aponte para "SAST". Trocar os dois é seguro se
+  # não houver essa regra configurada.
+  #
+  # O if: com always() continua necessário porque skip de JOB contamina a
+  # cadeia transitiva de needs e pularia docker-build/trivy-image/docker-push
+  # mesmo com prepare-image verde.
   sast:
     name: SAST
     runs-on: ubuntu-latest
@@ -101,20 +109,6 @@ jobs:
         run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        continue-on-error: ${{ inputs.security-bypass == true }}
-      - name: SonarQube
-        if: ${{ vars.SONAR_ORG != '' && !startsWith(github.ref, 'refs/tags/') }}
-        uses: TourinhoM/org-ci-platform/.github/actions/sonarqube@main
-        continue-on-error: ${{ inputs.security-bypass == true }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          sonar-organization: ${{ vars.SONAR_ORG }}
-          coverage-exclusions: ${{ inputs.coverage-exclusions }}
-          sonar-args: ""
-      - name: Semgrep
-        if: ${{ vars.SONAR_ORG == '' && !startsWith(github.ref, 'refs/tags/') }}
-        uses: TourinhoM/org-ci-platform/.github/actions/semgrep@main
         continue-on-error: ${{ inputs.security-bypass == true }}
 
   # -----------------------------
