@@ -131,10 +131,15 @@ jobs:
       contents: read
       packages: write
       security-events: write
-    env:
-      IMAGE_REF: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}${{ matrix.name && format('/{0}', matrix.name) || '' }}:${{ needs.prepare-image.outputs.image_tag }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      # ghcr.io/<repo>:<tag> com uma imagem só; ghcr.io/<repo>/<name>:<tag> com docker-images.
+      - name: Image ref
+        env:
+          REPO: ${{ needs.prepare-image.outputs.image_repo }}
+          TAG: ${{ needs.prepare-image.outputs.image_tag }}
+          NAME: ${{ matrix.name }}
+        run: echo "IMAGE_REF=ghcr.io/${REPO}${NAME:+/$NAME}:${TAG}" >> "$GITHUB_ENV"
       - uses: TourinhoM/org-ci-platform/.github/actions/docker-build-artifact@main
         with:
           image-ref: ${{ env.IMAGE_REF }}
