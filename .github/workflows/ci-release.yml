@@ -42,9 +42,13 @@ jobs:
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+        # Preset fixado na 9.x: a 10.x exige conventional-changelog-writer@9, e
+        # esta versão da action traz o writer 8.2.0 (release-notes-generator 14).
+        # Sem a versão, o npm instala a mais nova e o generateNotes falha com
+        # "Missing helper". Subir junto com a action, quando ela trouxer o writer 9.
         with:
           extra_plugins: |
             @semantic-release/changelog
             @semantic-release/git
-            conventional-changelog-conventionalcommits
+            conventional-changelog-conventionalcommits@9.3.1
           branch: main
