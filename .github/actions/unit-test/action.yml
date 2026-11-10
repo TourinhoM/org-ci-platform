@@ -5,6 +5,17 @@ inputs:
   node-version:
     required: false
     default: '24'
+  working-directory:
+    description: 'Diretorio do package.json, relativo a raiz do repo'
+    required: false
+    default: '.'
+  scripts:
+    description: >
+      Scripts do package.json a rodar, em ordem, separados por espaco
+      (ex.: "lint test build typecheck"). O default mantem o comportamento
+      original: so o test.
+    required: false
+    default: 'test'
 
 runs:
   using: composite
@@ -13,10 +24,22 @@ runs:
     # Detecta gerenciador antes de tudo. Setup-node usa 'cache' diferente por
     # gerenciador, e pnpm tem que estar disponivel antes do setup-node pra
     # cache funcionar.
+    - name: Detect package manager
+      id: detect
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [ -f pnpm-lock.yaml ]; then echo "pm=pnpm" >> "$GITHUB_OUTPUT"
+        elif [ -f package-lock.json ]; then echo "pm=npm-ci" >> "$GITHUB_OUTPUT"
+        else echo "pm=npm" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Setup pnpm
-      if: ${{ hashFiles('pnpm-lock.yaml') != '' }}
+      if: ${{ steps.detect.outputs.pm == 'pnpm' }}
       uses: pnpm/action-setup@8912a9102ac27614460f54aedde9e1e7f9aec20d # v6.0.5
       # Sem version: pega o pnpm pinado em packageManager do package.json.
+      with:
+        package_json_file: ${{ inputs.working-directory }}/package.json
 
     - name: Setup Node
       uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -25,33 +48,48 @@ runs:
 
     - name: Install dependencies
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PM: ${{ steps.detect.outputs.pm }}
       run: |
-        if [ -f pnpm-lock.yaml ]; then
-          pnpm install --frozen-lockfile
-        elif [ -f package-lock.json ]; then
-          npm ci
-        else
-          npm install
-        fi
+        case "$PM" in
+          pnpm) pnpm install --frozen-lockfile ;;
+          npm-ci) npm ci ;;
+          *) npm install ;;
+        esac
 
     # Roda via gerenciador correto. Sem -- --coverage cravado: nem todo
     # runner aceita esse flag (Japa do Adonis ignora, npm test puro funciona).
     # Coverage em si e responsabilidade do consumer configurar (jest/vitest
     # built-in, ou c8 wrappando o test command).
-    - name: Run tests
+    - name: Run scripts
       shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PM: ${{ steps.detect.outputs.pm }}
+        SCRIPTS: ${{ inputs.scripts }}
       run: |
-        if [ -f pnpm-lock.yaml ]; then
-          pnpm test
-        else
-          npm test
-        fi
+        set -euo pipefail
+        for s in $SCRIPTS; do
+          echo "::group::$s"
+          if [ "$PM" = "pnpm" ]; then pnpm run "$s"; else npm run "$s"; fi
+          echo "::endgroup::"
+        done
 
     # Upload condicional: se o consumer nao gerar lcov.info, segue sem
     # quebrar. Sonar simplesmente nao recebe coverage e reporta 0.
+    - name: Check coverage
+      id: coverage
+      shell: bash
+      env:
+        DIR: ${{ inputs.working-directory }}
+      run: |
+        f="$DIR/coverage/lcov.info"
+        if [ -f "$f" ]; then echo "path=$f" >> "$GITHUB_OUTPUT"; fi
+
     - name: Upload coverage artifact
-      if: ${{ hashFiles('coverage/lcov.info') != '' }}
+      if: ${{ steps.coverage.outputs.path != '' }}
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
         name: coverage
-        path: coverage/lcov.info
+        path: ${{ steps.coverage.outputs.path }}

@@ -9,6 +9,17 @@ inputs:
   dockerfile-path:
     required: false
     default: './Dockerfile'
+  context:
+    description: 'Build context, relativo a raiz do repo'
+    required: false
+    default: '.'
+  cache-scope:
+    description: >
+      Escopo do cache gha do buildx. Repo com mais de uma imagem precisa de um
+      escopo por imagem, senao uma sobrescreve o cache da outra. O default e o
+      escopo padrao do buildx.
+    required: false
+    default: 'buildkit'
   upload-artifact:
     description: 'Upload image.tar as GitHub artifact (set to false to skip upload and save storage)'
     required: false
@@ -23,13 +34,13 @@ runs:
     - name: Build (no push)
       uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
       with:
-        context: .
+        context: ${{ inputs.context }}
         file: ${{ inputs.dockerfile-path }}
         push: false
         load: true
         tags: ${{ inputs.image-ref }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        cache-from: type=gha,scope=${{ inputs.cache-scope }}
+        cache-to: type=gha,mode=max,scope=${{ inputs.cache-scope }}
 
     - name: Save image to tar
       run: docker save ${{ inputs.image-ref }} -o image.tar

@@ -117,6 +117,36 @@ GitHub não dispara workflows a partir de eventos gerados pelo `GITHUB_TOKEN` (s
 
 Permissões mínimas do App: **Contents: Read & Write**, **Issues: Write**, **Pull requests: Write**, **Metadata: Read**.
 
+### Repos com mais de uma stack ou mais de uma imagem (variantes `-private`)
+
+`ci-push-private.yml` e `ci-tag-private.yml` aceitam dois inputs opcionais, em JSON. Vazios, o comportamento é o original: unit-test Node na raiz e uma imagem com `dockerfile-path`.
+
+- **`docker-images`** (push e tag): uma entrada por imagem. Cada imagem tem seu `trivy-config` e seu `docker-build` + `trivy-image`, e fica em `ghcr.io/<repo>/<name>`.
+- **`test-matrix`** (push): uma entrada por suíte, e cada suíte vira um job `Tests (<name>)`. Com ela preenchida, o job `SAST` deixa de rodar o unit-test, mas continua existindo para não quebrar o check de branch protection.
+
+| Campo | Uso |
+|-------|-----|
+| `name` | Nome do job |
+| `stack` | `node` (scripts do package.json), `python-uv` (`uv sync --frozen` + comandos) ou `script` (script do próprio repo, com uv e Node instalados) |
+| `dir` | Diretório da suíte (default `.`) |
+| `run` | `node`: scripts separados por espaço · `python-uv`: comandos, um por linha · `script`: caminho do script |
+| `node` / `python` | Versões (default `24` / `3.13`) |
+| `postgres` | Imagem de um Postgres de serviço. Usuário, senha e banco são `ci`, em `127.0.0.1:5432` |
+| `env` | Objeto com as variáveis da suíte |
+| `artifact` | Caminho publicado como artifact se a suíte falhar |
+
+```yaml
+uses: TourinhoM/org-ci-platform/.github/workflows/ci-push-private.yml@main
+with:
+  docker-images: |
+    [{"name": "api", "context": ".", "dockerfile": "docker/Dockerfile.api"},
+     {"name": "web", "context": "web", "dockerfile": "web/Dockerfile"}]
+  test-matrix: |
+    [{"name": "api", "stack": "python-uv", "run": "uv run ruff check\nuv run pytest -q",
+      "postgres": "postgres:16-alpine", "env": {"TEST_DATABASE_URL": "postgresql+psycopg://ci:ci@127.0.0.1:5432/ci_test"}},
+     {"name": "web", "stack": "node", "dir": "web", "node": "22", "run": "lint test build typecheck"}]
+```
+
 ---
 
 ## Lint K8s pra repos GitOps
