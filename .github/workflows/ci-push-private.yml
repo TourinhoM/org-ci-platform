@@ -7,6 +7,30 @@ on:
         required: false
         default: './Dockerfile'
         type: string
+      docker-images:
+        required: false
+        default: ''
+        type: string
+        description: >
+          Lista JSON das imagens do repo, para quem tem mais de uma ou o
+          Dockerfile fora da raiz. Cada item: {"name": "api", "context": ".",
+          "dockerfile": "docker/Dockerfile.api"}. A imagem fica em
+          ghcr.io/<repo>/<name>. Vazio = uma imagem so, com contexto na raiz e
+          dockerfile-path (comportamento original).
+      test-matrix:
+        required: false
+        default: ''
+        type: string
+        description: >
+          Lista JSON das suites de teste. Vazio = o unit-test Node na raiz do
+          job SAST (comportamento original). Preenchida, o SAST para de rodar
+          o unit-test e cada item vira um job de Tests. Campos de cada item:
+          name, stack (node | python-uv | script), dir, run (node: scripts do
+          package.json separados por espaco; python-uv: comandos, um por
+          linha; script: caminho do script), node, python, postgres (imagem
+          de um Postgres de servico, usuario/senha/banco "ci" em
+          127.0.0.1:5432), env (objeto de variaveis) e artifact (caminho
+          publicado se o job falhar).
       coverage-exclusions:
         required: false
         type: string
@@ -24,6 +48,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+
+  # -----------------------------
+  # 0️⃣ Plano das imagens
+  # -----------------------------
+  # Normaliza docker-images numa lista só, consumida pela matriz do
+  # trivy-config e do docker-build. Sem docker-images, vira um item com
+  # dockerfile-path e contexto na raiz, igual ao que era antes.
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.images.outputs.images }}
+    steps:
+      - id: images
+        env:
+          DOCKER_IMAGES: ${{ inputs.docker-images }}
+          DOCKERFILE: ${{ inputs.dockerfile-path }}
+        run: |
+          set -euo pipefail
+          if [ -n "$DOCKER_IMAGES" ]; then
+            images=$(jq -c '[.[] | {name: (.name // ""), context: (.context // "."), dockerfile}]' <<< "$DOCKER_IMAGES")
+          else
+            images=$(jq -nc --arg f "$DOCKERFILE" '[{name: "", context: ".", dockerfile: $f}]')
+          fi
+          echo "images=$images" >> "$GITHUB_OUTPUT"
 
   # -----------------------------
   # 1️⃣ Trivy FS
@@ -61,9 +110,16 @@ jobs:
   # -----------------------------
   # 3️⃣ Trivy Config (Dockerfile lint)
   # -----------------------------
+  # O name usa a matriz só quando a imagem tem nome: com uma imagem só, o check
+  # continua "Trivy Config Scan", sem sufixo, e branch protection não quebra.
   trivy-config:
-    name: Trivy Config Scan
+    name: ${{ matrix.name && format('Trivy Config Scan ({0})', matrix.name) || 'Trivy Config Scan' }}
     runs-on: ubuntu-latest
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.images) }}
     permissions:
       contents: read
       security-events: write
@@ -75,7 +131,7 @@ jobs:
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-config@main
         continue-on-error: ${{ inputs.security-bypass == true }}
         with:
-          config-path: ${{ inputs.dockerfile-path }}
+          config-path: ${{ matrix.dockerfile }}
 
   # -----------------------------
   # 4️⃣ Unit Test
@@ -88,6 +144,9 @@ jobs:
   # aparece como check no GitHub, então renomear quebra required status check
   # de branch protection que aponte para "SAST". Trocar os dois é seguro se
   # não houver essa regra configurada.
+  #
+  # Com test-matrix preenchida, o unit-test sai daqui e vai para o job tests;
+  # o SAST continua existindo (vazio) pelo mesmo motivo do name.
   #
   # O if: com always() continua necessário porque skip de JOB contamina a
   # cadeia transitiva de needs e pularia docker-build/trivy-image/docker-push
@@ -108,8 +167,96 @@ jobs:
         if: ${{ inputs.security-bypass }}
         run: echo "::warning::security-bypass=true — scans will run but findings will NOT block the pipeline."
       - uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && inputs.test-matrix == '' }}
         continue-on-error: ${{ inputs.security-bypass == true }}
+
+  # -----------------------------
+  # 4️⃣b Tests (test-matrix)
+  # -----------------------------
+  # Um job por suite. O Postgres de serviço só sobe quando a suite pede
+  # (image vazia = serviço não criado). O fallback do fromJSON só existe para
+  # a expressão ser válida quando o job é pulado.
+  tests:
+    name: ${{ format('Tests ({0})', matrix.name || matrix.stack) }}
+    runs-on: ubuntu-latest
+    needs: [trivy-fs, trivy-config]
+    if: >-
+      ${{ always() && inputs.test-matrix != '' && (inputs.security-bypass ||
+      (needs.trivy-fs.result == 'success' && needs.trivy-config.result == 'success')) }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.test-matrix || '[{"stack":"none"}]') }}
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: ${{ matrix.postgres || '' }}
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci" --health-interval 5s
+          --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Export env
+        if: ${{ matrix.env }}
+        env:
+          MATRIX_ENV: ${{ toJSON(matrix.env) }}
+        run: |
+          set -euo pipefail
+          jq -r 'to_entries[] | "\(.key)=\(.value)"' <<< "$MATRIX_ENV" >> "$GITHUB_ENV"
+
+      - name: Node
+        if: ${{ matrix.stack == 'node' }}
+        uses: TourinhoM/org-ci-platform/.github/actions/unit-test@main
+        continue-on-error: ${{ inputs.security-bypass == true }}
+        with:
+          working-directory: ${{ matrix.dir || '.' }}
+          scripts: ${{ matrix.run || 'test' }}
+          node-version: ${{ matrix.node || '24' }}
+
+      - name: Python (uv)
+        if: ${{ matrix.stack == 'python-uv' }}
+        uses: TourinhoM/org-ci-platform/.github/actions/unit-test-uv@main
+        continue-on-error: ${{ inputs.security-bypass == true }}
+        with:
+          working-directory: ${{ matrix.dir || '.' }}
+          commands: ${{ matrix.run || 'uv run pytest' }}
+          python-version: ${{ matrix.python || '3.13' }}
+
+      - name: Script
+        if: ${{ matrix.stack == 'script' }}
+        uses: TourinhoM/org-ci-platform/.github/actions/test-script@main
+        continue-on-error: ${{ inputs.security-bypass == true }}
+        with:
+          script: ${{ matrix.run }}
+          python-version: ${{ matrix.python || '3.13' }}
+          node-version: ${{ matrix.node || '24' }}
+
+      - name: Stack desconhecida
+        if: ${{ !contains(fromJSON('["node","python-uv","script"]'), matrix.stack) }}
+        env:
+          STACK: ${{ matrix.stack }}
+        run: |
+          echo "::error::stack '$STACK' invalida na test-matrix (use node, python-uv ou script)"
+          exit 1
+
+      - name: Upload artifact on failure
+        if: ${{ failure() && matrix.artifact }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ format('falhas-{0}', matrix.name || matrix.stack) }}
+          path: ${{ matrix.artifact }}
+          retention-days: 7
 
   # -----------------------------
   # 5️⃣ Prepare Image
@@ -117,8 +264,10 @@ jobs:
   prepare-image:
     name: Prepare image
     runs-on: ubuntu-latest
-    needs: sast
-    if: ${{ always() && (inputs.security-bypass || needs.sast.result == 'success') }}
+    needs: [sast, tests]
+    if: >-
+      ${{ always() && (inputs.security-bypass || (needs.sast.result == 'success' &&
+      contains(fromJSON('["success","skipped"]'), needs.tests.result))) }}
     outputs:
       image_repo: ${{ steps.prepare.outputs.repo }}
       image_tag: ${{ steps.prepare.outputs.tag }}
@@ -133,20 +282,33 @@ jobs:
   # sem necessidade de artifact upload/download.
   # -----------------------------
   docker-build:
-    name: Docker Build
+    name: ${{ matrix.name && format('Docker Build ({0})', matrix.name) || 'Docker Build' }}
     runs-on: ubuntu-latest
-    needs: prepare-image
-    if: ${{ always() && (inputs.security-bypass || needs.prepare-image.result == 'success') }}
+    needs: [plan, prepare-image]
+    if: ${{ always() && needs.plan.result == 'success' && (inputs.security-bypass || needs.prepare-image.result == 'success') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.images) }}
     permissions:
       contents: read
       packages: write
       security-events: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      # ghcr.io/<repo>:<tag> com uma imagem só; ghcr.io/<repo>/<name>:<tag> com docker-images.
+      - name: Image ref
+        env:
+          REPO: ${{ needs.prepare-image.outputs.image_repo }}
+          TAG: ${{ needs.prepare-image.outputs.image_tag }}
+          NAME: ${{ matrix.name }}
+        run: echo "IMAGE_REF=ghcr.io/${REPO}${NAME:+/$NAME}:${TAG}" >> "$GITHUB_ENV"
       - uses: TourinhoM/org-ci-platform/.github/actions/docker-build-artifact@main
         with:
-          image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
-          dockerfile-path: ./Dockerfile
+          image-ref: ${{ env.IMAGE_REF }}
+          context: ${{ matrix.context }}
+          dockerfile-path: ${{ matrix.dockerfile }}
+          cache-scope: ${{ matrix.name || 'buildkit' }}
           upload-artifact: 'false'
       - name: ⚠️ Security scans running in non-blocking mode
         if: ${{ inputs.security-bypass }}
@@ -154,7 +316,7 @@ jobs:
       - uses: TourinhoM/org-ci-platform/.github/actions/trivy-image@main
         continue-on-error: ${{ inputs.security-bypass == true }}
         with:
-          image-ref: ghcr.io/${{ needs.prepare-image.outputs.image_repo }}:${{ needs.prepare-image.outputs.image_tag }}
+          image-ref: ${{ env.IMAGE_REF }}
 
   # -----------------------------
   # 8️⃣ Docker Push

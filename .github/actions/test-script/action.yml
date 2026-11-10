@@ -1,0 +1,36 @@
+# Single responsibility: roda um script de teste do proprio consumer.
+# Para suites que nao cabem em "instala e roda o test" (e2e com varios
+# servicos, migracao, seed): o roteiro fica no repo do projeto, a plataforma
+# so prepara as ferramentas e executa.
+name: Test Script
+description: Prepara uv e Node e roda um script de teste do repositorio
+
+inputs:
+  script:
+    description: 'Caminho do script, relativo a raiz do repo (roda com bash a partir da raiz)'
+    required: true
+  python-version:
+    required: false
+    default: '3.13'
+  node-version:
+    required: false
+    default: '24'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup uv
+      uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Setup Node
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Run script
+      shell: bash
+      env:
+        SCRIPT: ${{ inputs.script }}
+      run: bash "$SCRIPT"

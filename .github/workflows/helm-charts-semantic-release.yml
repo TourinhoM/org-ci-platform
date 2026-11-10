@@ -81,9 +81,10 @@ jobs:
 
           BODY="Common saiu como **${RELEASE_TYPE}**."
           if [ "$RELEASE_TYPE" = "major" ]; then
-            BODY="$BODY
-
-⚠️ BREAKING — sem automerge, revisar antes (pode exigir mudança em values.yaml dos consumidores)."
+            # printf em vez de quebra de linha literal: linha na coluna 0
+            # encerra o bloco `run: |` e invalida o YAML.
+            BODY=$(printf '%s\n\n%s' "$BODY" \
+              "⚠️ BREAKING — sem automerge, revisar antes (pode exigir mudança em values.yaml dos consumidores).")
           fi
 
           PR_URL=$(gh pr create --base main --head "$BRANCH" \
