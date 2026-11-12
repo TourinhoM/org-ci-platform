@@ -15,6 +15,18 @@ on:
           Lista JSON das imagens do repo (mesmo formato do ci-push-private):
           [{"name": "api", "context": ".", "dockerfile": "docker/Dockerfile.api"}].
           Vazio = uma imagem so, com contexto na raiz e dockerfile-path.
+      runner:
+        required: false
+        default: 'ubuntu-latest'
+        type: string
+        description: >
+          Onde rodar os jobs. Um label de runner (default ubuntu-latest;
+          dev-local roda tudo nos PCs dos devs, sem gastar minuto do GitHub)
+          ou "auto": o Plan roda no GitHub e escolhe um runner self-hosted
+          com o label dev-local (ver solutions-bytesoul/ci-runner) se houver um
+          online e livre, senao ubuntu-latest. O auto precisa do secret
+          RUNNER_READ_TOKEN (fine-grained, Self-hosted runners: Read-only na
+          org); sem ele, cai no ubuntu-latest.
       security-bypass:
         required: false
         default: false
@@ -28,6 +40,9 @@ on:
           cross-repo da tag no gitops-<app> (job update-gitops). Secret
           acessado sob `secrets: inherit` precisa ser DECLARADO aqui pra
           popular — senão chega vazio (footgun do reusable workflow).
+      RUNNER_READ_TOKEN:
+        required: false
+        description: 'Token que le os runners da org, para o runner: auto.'
 
 # Tag pipeline produz artefato versionado — nao cancelar em meio ao push.
 concurrency:
@@ -41,10 +56,42 @@ jobs:
   # -----------------------------
   plan:
     name: Plan
-    runs-on: ubuntu-latest
+    # Runner fixo (ex.: dev-local): tudo roda nele, nada no GitHub. No auto,
+    # o Plan precisa de um lugar certo para rodar e escolher: o ubuntu-latest.
+    runs-on: ${{ inputs.runner == 'auto' && 'ubuntu-latest' || inputs.runner }}
     outputs:
       images: ${{ steps.images.outputs.images }}
+      runs-on: ${{ steps.runner.outputs.runs-on }}
     steps:
+      # runs-on de todos os outros jobs. Fica neste job, que ja roda em todo
+      # evento, para o modo auto nao custar um job a mais.
+      - id: runner
+        env:
+          MODO: ${{ inputs.runner }}
+          GH_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+          ORG: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          if [ "$MODO" != "auto" ]; then
+            echo "runs-on=$(jq -nc --arg r "$MODO" '$r')" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          livres=0
+          if [ -n "$GH_TOKEN" ]; then
+            filtro='[.runners[] | select(.status == "online" and (.busy | not)'
+            filtro+=' and any(.labels[]; .name == "dev-local"))] | length'
+            contagens=$(gh api --paginate "orgs/$ORG/actions/runners" --jq "$filtro") || contagens=0
+            livres=$(awk '{s += $1} END {print s + 0}' <<< "$contagens")
+          else
+            echo "::warning::runner: auto sem o secret RUNNER_READ_TOKEN; usando ubuntu-latest."
+          fi
+          if [ "$livres" -gt 0 ]; then
+            echo "runs-on=[\"self-hosted\",\"dev-local\"]" >> "$GITHUB_OUTPUT"
+            echo "Runner: self-hosted dev-local ($livres livre(s))" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "runs-on=\"ubuntu-latest\"" >> "$GITHUB_OUTPUT"
+            echo "Runner: ubuntu-latest (nenhum dev-local livre)" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - id: images
         env:
           DOCKER_IMAGES: ${{ inputs.docker-images }}
@@ -63,7 +110,8 @@ jobs:
   # -----------------------------
   trivy-fs:
     name: Trivy FS Scan
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.plan.outputs.runs-on) }}
+    needs: plan
     permissions:
       contents: read
       security-events: write
@@ -80,7 +128,7 @@ jobs:
   # -----------------------------
   trivy-config:
     name: ${{ matrix.name && format('Trivy Config Scan ({0})', matrix.name) || 'Trivy Config Scan' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.plan.outputs.runs-on) }}
     needs: plan
     strategy:
       fail-fast: false
@@ -104,8 +152,8 @@ jobs:
   # -----------------------------
   prepare-image:
     name: Prepare image
-    runs-on: ubuntu-latest
-    needs: [trivy-fs, trivy-config]
+    runs-on: ${{ fromJSON(needs.plan.outputs.runs-on) }}
+    needs: [plan, trivy-fs, trivy-config]
     if: ${{ always() && (inputs.security-bypass || (needs.trivy-fs.result == 'success' && needs.trivy-config.result == 'success')) }}
     outputs:
       image_repo: ${{ steps.prepare.outputs.repo }}
@@ -120,7 +168,7 @@ jobs:
   # -----------------------------
   docker-build:
     name: ${{ matrix.name && format('Docker Build ({0})', matrix.name) || 'Docker Build' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(needs.plan.outputs.runs-on) }}
     needs: [plan, prepare-image]
     if: ${{ always() && needs.plan.result == 'success' && (inputs.security-bypass || needs.prepare-image.result == 'success') }}
     strategy:

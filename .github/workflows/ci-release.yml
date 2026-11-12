@@ -2,6 +2,14 @@ name: CI - Semantic Release
 
 on:
   workflow_call:
+    inputs:
+      runner:
+        required: false
+        default: 'ubuntu-latest'
+        type: string
+        description: >
+          Label do runner de todos os jobs (ex.: dev-local, os runners locais
+          de solutions-bytesoul/ci-runner). "auto" aqui vale ubuntu-latest.
     secrets:
       RELEASE_APP_PRIVATE_KEY:
         required: false
@@ -15,7 +23,7 @@ concurrency:
 jobs:
   semantic-release:
     name: Semantic Release
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner == 'auto' && 'ubuntu-latest' || inputs.runner }}
     permissions:
       contents: write       # necessário para criar tag
       issues: write

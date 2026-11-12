@@ -117,6 +117,23 @@ GitHub não dispara workflows a partir de eventos gerados pelo `GITHUB_TOKEN` (s
 
 Permissões mínimas do App: **Contents: Read & Write**, **Issues: Write**, **Pull requests: Write**, **Metadata: Read**.
 
+### Runner local dos devs (`runner: auto`, variantes `-private`)
+
+`ci-push-private.yml` e `ci-tag-private.yml` aceitam o input `runner`. O default é `ubuntu-latest`, e com ele nada muda.
+
+Com `runner: auto`, o job `Plan` (que roda sempre no GitHub) consulta os runners da org. Se algum com o label `dev-local` estiver online e livre, todos os outros jobs rodam em `[self-hosted, dev-local]`; senão, em `ubuntu-latest`. Os runners `dev-local` ficam nos PCs dos devs: ver [solutions-bytesoul/ci-runner](https://github.com/solutions-bytesoul/ci-runner).
+
+- O `auto` precisa do secret `RUNNER_READ_TOKEN`: um token fine-grained da org, só com **Self-hosted runners: Read-only**. No plano free, secret da org não chega em repo privado, então o secret vai em cada repo. Sem ele, os jobs vão para o `ubuntu-latest`, com um aviso.
+- Se dois runs pegarem o mesmo runner livre, o segundo espera na fila; não volta para o GitHub.
+
+```yaml
+uses: TourinhoM/org-ci-platform/.github/workflows/ci-push-private.yml@main
+with:
+  runner: auto
+secrets:
+  RUNNER_READ_TOKEN: ${{ secrets.RUNNER_READ_TOKEN }}
+```
+
 ### Repos com mais de uma stack ou mais de uma imagem (variantes `-private`)
 
 `ci-push-private.yml` e `ci-tag-private.yml` aceitam dois inputs opcionais, em JSON. Vazios, o comportamento é o original: unit-test Node na raiz e uma imagem com `dockerfile-path`.
