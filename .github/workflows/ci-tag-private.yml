@@ -20,8 +20,9 @@ on:
         default: 'ubuntu-latest'
         type: string
         description: >
-          Onde rodar os jobs (o Plan roda sempre no GitHub). Um label de
-          runner (default ubuntu-latest) ou "auto": usa um runner self-hosted
+          Onde rodar os jobs. Um label de runner (default ubuntu-latest;
+          dev-local roda tudo nos PCs dos devs, sem gastar minuto do GitHub)
+          ou "auto": o Plan roda no GitHub e escolhe um runner self-hosted
           com o label dev-local (ver solutions-bytesoul/ci-runner) se houver um
           online e livre, senao ubuntu-latest. O auto precisa do secret
           RUNNER_READ_TOKEN (fine-grained, Self-hosted runners: Read-only na
@@ -55,7 +56,9 @@ jobs:
   # -----------------------------
   plan:
     name: Plan
-    runs-on: ubuntu-latest
+    # Runner fixo (ex.: dev-local): tudo roda nele, nada no GitHub. No auto,
+    # o Plan precisa de um lugar certo para rodar e escolher: o ubuntu-latest.
+    runs-on: ${{ inputs.runner == 'auto' && 'ubuntu-latest' || inputs.runner }}
     outputs:
       images: ${{ steps.images.outputs.images }}
       runs-on: ${{ steps.runner.outputs.runs-on }}
